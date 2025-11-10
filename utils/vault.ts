@@ -1,5 +1,5 @@
-import EncryptedStorage from 'react-native-encrypted-storage';
 import * as Crypto from 'expo-crypto';
+import EncryptedStorage from 'react-native-encrypted-storage';
 import { v4 as uuidv4 } from 'uuid';
 
 // Define the shape of a single password entry
