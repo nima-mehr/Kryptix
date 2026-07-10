@@ -4,9 +4,6 @@ import type { PasswordEntry, PasswordVault } from '../types/vault';
 
 const VAULT_KEY = 'kryptix_vault';
 
-/**
- * Save the entire vault securely
- */
 export const saveVault = async (vault: PasswordVault): Promise<void> => {
   try {
     const json = JSON.stringify(vault);
@@ -17,9 +14,6 @@ export const saveVault = async (vault: PasswordVault): Promise<void> => {
   }
 };
 
-/**
- * Load the entire vault
- */
 export const loadVault = async (): Promise<PasswordVault> => {
   try {
     const json = await SecureStore.getItemAsync(VAULT_KEY);
@@ -31,15 +25,11 @@ export const loadVault = async (): Promise<PasswordVault> => {
   }
 };
 
-/**
- * Add a new password entry
- */
 export const addPassword = async (
   entry: Omit<PasswordEntry, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<void> => {
   const vault = await loadVault();
   const now = Date.now();
-
   const newEntry: PasswordEntry = {
     ...entry,
     id: uuidv4(),
@@ -47,42 +37,15 @@ export const addPassword = async (
     updatedAt: now,
     favorite: entry.favorite ?? false,
   };
-
   vault.push(newEntry);
   await saveVault(vault);
 };
 
-/**
- * Update an existing password entry
- */
-export const updatePassword = async (
-  id: string,
-  updates: Partial<Omit<PasswordEntry, 'id' | 'createdAt'>>
-): Promise<void> => {
-  const vault = await loadVault();
-  const index = vault.findIndex((e) => e.id === id);
-
-  if (index === -1) {
-    throw new Error('Password entry not found');
-  }
-
-  vault[index] = {
-    ...vault[index],
-    ...updates,
-    updatedAt: Date.now(),
-  };
-
-  await saveVault(vault);
-};
-
-/**
- * Delete a password entry
- */
 export const deletePassword = async (id: string): Promise<void> => {
   const vault = await loadVault();
-  const filteredVault = vault.filter((e) => e.id !== id);
-  await saveVault(filteredVault);
+  const filtered = vault.filter((e) => e.id !== id);
+  await saveVault(filtered);
 };
 
-// ← ADD THESE TWO LINES
+// Re-export types for easy importing
 export type { PasswordEntry, PasswordVault };
