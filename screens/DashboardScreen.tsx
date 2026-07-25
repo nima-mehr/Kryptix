@@ -98,6 +98,7 @@ const DashboardScreen = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(true);
   const [visiblePasswords, setVisiblePasswords] = useState<{ [key: string]: boolean }>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null); // tracks which button was copied
 
   const strength = useMemo(() => calculateStrength(password), [password]);
 
@@ -159,13 +160,16 @@ const DashboardScreen = () => {
     }));
   };
 
-  const copyToClipboard = (text: string, label: string = 'Password') => {
-    if (!text) {
-      Alert.alert('Nothing to copy', 'Generate or type a password first');
-      return;
-    }
+  const copyToClipboard = (text: string, id: string = 'form') => {
+    if (!text) return;
+
     Clipboard.setString(text);
-    Alert.alert('Copied', `${label} copied to clipboard`);
+    setCopiedId(id);
+
+    // Reset after 1.5 seconds
+    setTimeout(() => {
+      setCopiedId(null);
+    }, 1500);
   };
 
   const handleLogout = () => {
@@ -179,6 +183,8 @@ const DashboardScreen = () => {
       </View>
     );
   }
+
+  const isFormCopied = copiedId === 'form';
 
   return (
     <View style={styles.container}>
@@ -215,12 +221,21 @@ const DashboardScreen = () => {
             style={[styles.input, styles.passwordInput]}
           />
           <TouchableOpacity
-            style={styles.copyInputBtn}
-            onPress={() => copyToClipboard(password)}
+            style={[
+              styles.copyInputBtn,
+              isFormCopied && styles.copyInputBtnActive,
+              !password && { opacity: 0.4 },
+            ]}
+            onPress={() => copyToClipboard(password, 'form')}
             disabled={!password}
           >
-            <Text style={[styles.copyInputBtnText, !password && { opacity: 0.4 }]}>
-              Copy
+            <Text
+              style={[
+                styles.copyInputBtnText,
+                isFormCopied && styles.copyInputBtnTextActive,
+              ]}
+            >
+              {isFormCopied ? 'Copied!' : 'Copy'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -268,6 +283,7 @@ const DashboardScreen = () => {
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
           const isVisible = visiblePasswords[item.id];
+          const isCopied = copiedId === item.id;
 
           return (
             <View style={styles.entry}>
@@ -291,10 +307,12 @@ const DashboardScreen = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.actionBtn}
-                  onPress={() => copyToClipboard(item.password)}
+                  style={[styles.actionBtn, isCopied && styles.actionBtnCopied]}
+                  onPress={() => copyToClipboard(item.password, item.id)}
                 >
-                  <Text style={styles.actionText}>Copy</Text>
+                  <Text style={[styles.actionText, isCopied && styles.actionTextCopied]}>
+                    {isCopied ? 'Copied!' : 'Copy'}
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -371,11 +389,19 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 10,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  copyInputBtnActive: {
+    backgroundColor: '#e8f5e9',
   },
   copyInputBtnText: {
     color: '#0066cc',
     fontWeight: '600',
     fontSize: 14,
+  },
+  copyInputBtnTextActive: {
+    color: '#2e7d32',
   },
   strengthContainer: {
     marginBottom: 14,
@@ -468,10 +494,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     borderRadius: 6,
   },
+  actionBtnCopied: {
+    backgroundColor: '#e8f5e9',
+  },
   actionText: {
     fontSize: 13,
     fontWeight: '600',
     color: '#333',
+  },
+  actionTextCopied: {
+    color: '#2e7d32',
   },
   deleteBtn: {
     backgroundColor: '#ffebee',
