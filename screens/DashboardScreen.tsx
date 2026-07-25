@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   TextInput,
-  Button,
   FlatList,
   TouchableOpacity,
   StyleSheet,
@@ -13,6 +12,84 @@ import {
 import { useRouter } from 'expo-router';
 import { addPassword, loadVault, deletePassword, PasswordEntry } from '../utils/vault';
 
+// ====================== PASSWORD STRENGTH ======================
+type StrengthLevel = {
+  score: number; // 0-4
+  label: string;
+  color: string;
+  feedback: string;
+};
+
+const calculateStrength = (password: string): StrengthLevel => {
+  if (!password) {
+    return { score: 0, label: '', color: '#e0e0e0', feedback: '' };
+  }
+
+  let score = 0;
+  const feedbacks: string[] = [];
+
+  // Length
+  if (password.length >= 8) score += 1;
+  if (password.length >= 12) score += 1;
+  if (password.length >= 16) score += 1;
+
+  // Character variety
+  const hasLower = /[a-z]/.test(password);
+  const hasUpper = /[A-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSymbol = /[^a-zA-Z0-9]/.test(password);
+
+  const varietyCount = [hasLower, hasUpper, hasNumber, hasSymbol].filter(Boolean).length;
+  if (varietyCount >= 3) score += 1;
+  if (varietyCount === 4) score += 1;
+
+  // Penalties for common weaknesses
+  if (password.length < 8) {
+    feedbacks.push('Too short');
+  }
+  if (!hasLower || !hasUpper) {
+    feedbacks.push('Mix upper & lower case');
+  }
+  if (!hasNumber) {
+    feedbacks.push('Add numbers');
+  }
+  if (!hasSymbol) {
+    feedbacks.push('Add symbols');
+  }
+
+  // Detect very common patterns
+  const commonPatterns = ['password', '123456', 'qwerty', 'abc123', 'letmein', 'admin'];
+  if (commonPatterns.some((p) => password.toLowerCase().includes(p))) {
+    score = Math.max(0, score - 2);
+    feedbacks.push('Avoid common words');
+  }
+
+  // Sequential characters penalty
+  if (/(.)\1{2,}/.test(password) || /012|123|234|345|456|567|678|789|abc|bcd|cde/.test(password.toLowerCase())) {
+    score = Math.max(0, score - 1);
+    feedbacks.push('Avoid sequences');
+  }
+
+  // Cap score at 4
+  score = Math.min(4, Math.max(0, score));
+
+  const levels: Record<number, { label: string; color: string }> = {
+    0: { label: 'Very Weak', color: '#d32f2f' },
+    1: { label: 'Weak', color: '#f57c00' },
+    2: { label: 'Fair', color: '#fbc02d' },
+    3: { label: 'Strong', color: '#388e3c' },
+    4: { label: 'Very Strong', color: '#1b5e20' },
+  };
+
+  return {
+    score,
+    label: levels[score].label,
+    color: levels[score].color,
+    feedback: feedbacks.length > 0 ? feedbacks[0] : 'Looks good!',
+  };
+};
+
+// ====================== COMPONENT ======================
 const DashboardScreen = () => {
   const router = useRouter();
   const [vault, setVault] = useState<PasswordEntry[]>([]);
@@ -21,6 +98,8 @@ const DashboardScreen = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(true);
   const [visiblePasswords, setVisiblePasswords] = useState<{ [key: string]: boolean }>({});
+
+  const strength = useMemo(() => calculateStrength(password), [password]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -129,6 +208,31 @@ const DashboardScreen = () => {
           style={styles.input}
         />
 
+        {/* Strength Meter */}
+        {password.length > 0 && (
+          <View style={styles.strengthContainer}>
+            <View style={styles.strengthBars}>
+              {[0, 1, 2, 3, 4].map((i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.strengthBar,
+                    {
+                      backgroundColor: i <= strength.score ? strength.color : '#e0e0e0',
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+            <View style={styles.strengthTextRow}>
+              <Text style={[styles.strengthLabel, { color: strength.color }]}>
+                {strength.label}
+              </Text>
+              <Text style={styles.strengthFeedback}>{strength.feedback}</Text>
+            </View>
+          </View>
+        )}
+
         <View style={styles.buttonRow}>
           <TouchableOpacity style={styles.generateBtn} onPress={() => generatePassword()}>
             <Text style={styles.generateBtnText}>Generate</Text>
@@ -234,6 +338,32 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#fafafa',
     fontSize: 16,
+  },
+  strengthContainer: {
+    marginBottom: 14,
+  },
+  strengthBars: {
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: 6,
+  },
+  strengthBar: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+  },
+  strengthTextRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  strengthLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  strengthFeedback: {
+    fontSize: 12,
+    color: '#888',
   },
   buttonRow: {
     flexDirection: 'row',
