@@ -1,11 +1,11 @@
 import * as SecureStore from 'expo-secure-store';
-import * as Crypto from 'expo-crypto';
 import type { PasswordEntry, PasswordVault } from '../types/vault';
 
 const VAULT_KEY = 'kryptix_vault';
 
-const generateId = async (): Promise<string> => {
-  return Crypto.randomUUID();
+// Reliable ID generator that works everywhere (no crypto.getRandomValues needed)
+const generateId = (): string => {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 11);
 };
 
 export const saveVault = async (vault: PasswordVault): Promise<void> => {
@@ -36,7 +36,7 @@ export const addPassword = async (
   const now = Date.now();
   const newEntry: PasswordEntry = {
     ...entry,
-    id: await generateId(),
+    id: generateId(),
     createdAt: now,
     updatedAt: now,
     favorite: entry.favorite ?? false,
