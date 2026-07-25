@@ -159,7 +159,11 @@ const DashboardScreen = () => {
     }));
   };
 
-  const copyToClipboard = (text: string, label: string) => {
+  const copyToClipboard = (text: string, label: string = 'Password') => {
+    if (!text) {
+      Alert.alert('Nothing to copy', 'Generate or type a password first');
+      return;
+    }
     Clipboard.setString(text);
     Alert.alert('Copied', `${label} copied to clipboard`);
   };
@@ -200,13 +204,26 @@ const DashboardScreen = () => {
           style={styles.input}
           autoCapitalize="none"
         />
-        <TextInput
-          placeholder="Password"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          style={styles.input}
-        />
+
+        {/* Password field + Copy button */}
+        <View style={styles.passwordInputRow}>
+          <TextInput
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            style={[styles.input, styles.passwordInput]}
+          />
+          <TouchableOpacity
+            style={styles.copyInputBtn}
+            onPress={() => copyToClipboard(password)}
+            disabled={!password}
+          >
+            <Text style={[styles.copyInputBtnText, !password && { opacity: 0.4 }]}>
+              Copy
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Strength Meter */}
         {password.length > 0 && (
@@ -275,7 +292,7 @@ const DashboardScreen = () => {
 
                 <TouchableOpacity
                   style={styles.actionBtn}
-                  onPress={() => copyToClipboard(item.password, 'Password')}
+                  onPress={() => copyToClipboard(item.password)}
                 >
                   <Text style={styles.actionText}>Copy</Text>
                 </TouchableOpacity>
@@ -338,6 +355,27 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#fafafa',
     fontSize: 16,
+  },
+  passwordInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  passwordInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  copyInputBtn: {
+    backgroundColor: '#e8f0fe',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+  },
+  copyInputBtnText: {
+    color: '#0066cc',
+    fontWeight: '600',
+    fontSize: 14,
   },
   strengthContainer: {
     marginBottom: 14,
