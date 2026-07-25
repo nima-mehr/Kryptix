@@ -1,8 +1,12 @@
 import * as SecureStore from 'expo-secure-store';
-import { v4 as uuidv4 } from 'uuid';
+import * as Crypto from 'expo-crypto';
 import type { PasswordEntry, PasswordVault } from '../types/vault';
 
 const VAULT_KEY = 'kryptix_vault';
+
+const generateId = async (): Promise<string> => {
+  return Crypto.randomUUID();
+};
 
 export const saveVault = async (vault: PasswordVault): Promise<void> => {
   try {
@@ -32,7 +36,7 @@ export const addPassword = async (
   const now = Date.now();
   const newEntry: PasswordEntry = {
     ...entry,
-    id: uuidv4(),
+    id: await generateId(),
     createdAt: now,
     updatedAt: now,
     favorite: entry.favorite ?? false,
