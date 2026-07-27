@@ -92,6 +92,7 @@ const DashboardScreen = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [showFormPassword, setShowFormPassword] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   const strength = useMemo(() => calculateStrength(password), [password]);
 
@@ -133,18 +134,10 @@ const DashboardScreen = () => {
     }
   };
 
-  const handleDelete = (id: string) => {
-    Alert.alert('Delete', 'Are you sure you want to delete this entry?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          await deletePassword(id);
-          setVault(await loadVault());
-        },
-      },
-    ]);
+  const confirmDelete = async (id: string) => {
+    await deletePassword(id);
+    setVault(await loadVault());
+    setConfirmingDeleteId(null);
   };
 
   const togglePasswordVisibility = (id: string) => {
@@ -352,6 +345,7 @@ const DashboardScreen = () => {
         renderItem={({ item }) => {
           const isVisible = visiblePasswords[item.id];
           const isCopied = copiedId === item.id;
+          const isConfirmingDelete = confirmingDeleteId === item.id;
 
           return (
             <View style={[styles.entry, { backgroundColor: colors.card }]}>
@@ -367,38 +361,58 @@ const DashboardScreen = () => {
               </View>
 
               <View style={styles.actions}>
-                <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
-                  onPress={() => togglePasswordVisibility(item.id)}
-                >
-                  <Text style={[styles.actionText, { color: colors.text }]}>
-                    {isVisible ? 'Hide' : 'Show'}
-                  </Text>
-                </TouchableOpacity>
+                {!isConfirmingDelete ? (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                      onPress={() => togglePasswordVisibility(item.id)}
+                    >
+                      <Text style={[styles.actionText, { color: colors.text }]}>
+                        {isVisible ? 'Hide' : 'Show'}
+                      </Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[
-                    styles.actionBtn,
-                    { backgroundColor: isCopied ? colors.successBackground : colors.overlay },
-                  ]}
-                  onPress={() => copyToClipboard(item.password, item.id)}
-                >
-                  <Text
-                    style={[
-                      styles.actionText,
-                      { color: isCopied ? colors.success : colors.text },
-                    ]}
-                  >
-                    {isCopied ? 'Copied!' : 'Copy'}
-                  </Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.actionBtn,
+                        { backgroundColor: isCopied ? colors.successBackground : colors.overlay },
+                      ]}
+                      onPress={() => copyToClipboard(item.password, item.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.actionText,
+                          { color: isCopied ? colors.success : colors.text },
+                        ]}
+                      >
+                        {isCopied ? 'Copied!' : 'Copy'}
+                      </Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
-                  onPress={() => handleDelete(item.id)}
-                >
-                  <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
+                      onPress={() => setConfirmingDeleteId(item.id)}
+                    >
+                      <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                      onPress={() => setConfirmingDeleteId(null)}
+                    >
+                      <Text style={[styles.actionText, { color: colors.text }]}>Cancel</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
+                      onPress={() => confirmDelete(item.id)}
+                    >
+                      <Text style={[styles.actionText, { color: colors.danger }]}>Remove</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             </View>
           );
