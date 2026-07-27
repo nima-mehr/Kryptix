@@ -238,13 +238,16 @@ const DashboardScreen = () => {
     }
 
     try {
+      // New entries use the top category filter; edits keep the entry's category
+      const categoryForSave = isEditing ? formCategory : selectedCategory;
+
       const payload = {
         site,
         url: url.trim() || undefined,
         username,
         password,
         notes: notes.trim() || undefined,
-        category: formCategory || undefined,
+        category: categoryForSave || undefined,
       };
 
       if (isEditing && editingId) {
@@ -347,6 +350,7 @@ const DashboardScreen = () => {
     try {
       const updated = await addCategory(name);
       setCategories(updated);
+      setSelectedCategory(name);
       setFormCategory(name);
       setShowCreateCategoryModal(false);
       setNewCategoryName('');
@@ -361,7 +365,7 @@ const DashboardScreen = () => {
       let entries: PasswordEntry[] | undefined;
 
       if (scope === 'all') {
-        entries = undefined; // full vault inside export helpers
+        entries = undefined;
       } else if (scope === 'category') {
         entries = filteredVault;
         if (entries.length === 0) {
@@ -691,51 +695,6 @@ const DashboardScreen = () => {
           style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
           autoCapitalize="none"
         />
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: 12 }}
-          contentContainerStyle={{ gap: 8 }}
-          nestedScrollEnabled
-        >
-          <TouchableOpacity
-            style={[
-              styles.chip,
-              {
-                backgroundColor: formCategory === null ? colors.tint + '33' : colors.inputBackground,
-                borderColor: formCategory === null ? colors.tint : colors.border,
-              },
-            ]}
-            onPress={() => setFormCategory(null)}
-          >
-            <Text style={[styles.chipText, { color: colors.text, fontSize: 13 }]}>Main list</Text>
-          </TouchableOpacity>
-          {categories.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: formCategory === cat ? colors.tint + '33' : colors.inputBackground,
-                  borderColor: formCategory === cat ? colors.tint : colors.border,
-                },
-              ]}
-              onPress={() => setFormCategory(cat)}
-            >
-              <Text style={[styles.chipText, { color: colors.text, fontSize: 13 }]}>{cat}</Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={[
-              styles.chip,
-              { backgroundColor: colors.inputBackground, borderColor: colors.tint, borderStyle: 'dashed' },
-            ]}
-            onPress={openCreateCategory}
-          >
-            <Text style={[styles.chipText, { color: colors.tint, fontSize: 13 }]}>+ Add</Text>
-          </TouchableOpacity>
-        </ScrollView>
 
         <View style={styles.passwordInputRow}>
           <TextInput
