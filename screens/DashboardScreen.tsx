@@ -9,6 +9,7 @@ import {
   Alert,
   Clipboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { addPassword, loadVault, deletePassword, PasswordEntry } from '../utils/vault';
 import { useTheme, ThemeMode } from '../context/ThemeContext';
@@ -79,7 +80,8 @@ const calculateStrength = (password: string): StrengthLevel => {
 // ====================== COMPONENT ======================
 const DashboardScreen = () => {
   const router = useRouter();
-  const { colors, mode, setMode, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { colors, mode, setMode } = useTheme();
 
   const [vault, setVault] = useState<PasswordEntry[]>([]);
   const [site, setSite] = useState('');
@@ -123,7 +125,7 @@ const DashboardScreen = () => {
       setSite('');
       setUsername('');
       setPassword('');
-      Alert.alert('Success', 'Password saved securely!');
+      // Success feedback removed — silent save
     } catch (error) {
       Alert.alert('Error', 'Failed to save password');
     }
@@ -169,7 +171,7 @@ const DashboardScreen = () => {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 12 }]}>
         <Text style={{ color: colors.text }}>Loading your vault...</Text>
       </View>
     );
@@ -178,7 +180,16 @@ const DashboardScreen = () => {
   const isFormCopied = copiedId === 'form';
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: insets.top + 12,
+          paddingBottom: insets.bottom + 8,
+        },
+      ]}
+    >
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix Vault</Text>
@@ -390,7 +401,7 @@ const DashboardScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 20,
   },
   header: {
     flexDirection: 'row',
