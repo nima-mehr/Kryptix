@@ -120,6 +120,7 @@ const DashboardScreen = () => {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const strength = useMemo(() => calculateStrength(password), [password]);
   const isEditing = editingId !== null;
@@ -184,6 +185,10 @@ const DashboardScreen = () => {
           setShowThemePicker(false);
           return true;
         }
+        if (expandedCategory) {
+          setExpandedCategory(null);
+          return true;
+        }
         if (showExportMenu) {
           if (exportFormat) {
             setExportFormat(null);
@@ -215,6 +220,7 @@ const DashboardScreen = () => {
       showThemePicker,
       showExportMenu,
       exportFormat,
+      expandedCategory,
       selectedCount,
       confirmingDeleteId,
       editingId,
@@ -452,35 +458,21 @@ const DashboardScreen = () => {
     }
   };
 
-  const handleDeleteCategory = (name: string) => {
-    Alert.alert(
-      'Delete category',
-      `Delete "${name}"? Passwords in it will move to the main list.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const data = await loadVault();
-              const updated = data.map((e) =>
-                e.category === name ? { ...e, category: undefined } : e
-              );
-              const { saveVault } = await import('../utils/vault');
-              await saveVault(updated);
-              const cats = await deleteCategory(name);
-              setCategories(cats);
-              setVault(updated);
-              if (selectedCategory === name) setSelectedCategory(null);
-              if (formCategory === name) setFormCategory(null);
-            } catch (e: any) {
-              Alert.alert('Error', e?.message || 'Could not delete category');
-            }
-          },
-        },
-      ]
-    );
+  const handleDeleteCategory = async (name: string) => {
+    try {
+      const data = await loadVault();
+      const updated = data.map((e) => (e.category === name ? { ...e, category: undefined } : e));
+      const { saveVault } = await import('../utils/vault');
+      await saveVault(updated);
+      const cats = await deleteCategory(name);
+      setCategories(cats);
+      setVault(updated);
+      setExpandedCategory(null);
+      if (selectedCategory === name) setSelectedCategory(null);
+      if (formCategory === name) setFormCategory(null);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not delete category');
+    }
   };
 
   const handleLogout = () => {
@@ -641,24 +633,41 @@ const DashboardScreen = () => {
           </Text>
         </TouchableOpacity>
 
-        {categories.map((cat) => (
-          <TouchableOpacity
-            key={cat}
-            style={[
-              styles.chip,
-              {
-                backgroundColor: selectedCategory === cat ? colors.tint : colors.card,
-                borderColor: colors.border,
-              },
-            ]}
-            onPress={() => setSelectedCategory(cat)}
-            onLongPress={() => handleDeleteCategory(cat)}
-          >
-            <Text style={[styles.chipText, { color: selectedCategory === cat ? '#fff' : colors.text }]}>
-              {cat}
-            </Text>
-          </TouchableOpacity>
-        ))}
+{categories.map((cat) => {
+          const isExpanded = expandedCategory === cat;
+
+          return (
+            <View key={cat} style={styles.categoryChipContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: selectedCategory === cat ? colors.tint : colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={() => {
+                  setSelectedCategory(cat);
+                  setExpandedCategory(null);
+                }}
+                onLongPress={() => setExpandedCategory(isExpanded ? null : cat)}
+              >
+                <Text style={[styles.chipText, { color: selectedCategory === cat ? '#fff' : colors.text }]}>
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+
+              {isExpanded && (
+                <TouchableOpacity
+                  style={[styles.categoryDeleteButton, { backgroundColor: colors.dangerBackground }]}
+                  onPress={() => handleDeleteCategory(cat)}
+                >
+                  <Text style={[styles.categoryDeleteText, { color: colors.danger }]}>Delete</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })}
 
         <TouchableOpacity
           style={[styles.chip, { backgroundColor: colors.card, borderColor: colors.tint, borderStyle: 'dashed' }]}
@@ -1146,6 +1155,7 @@ const styles = StyleSheet.create({
   exportOptionText: { fontSize: 15, fontWeight: '600' },
   exportOptionHint: { fontSize: 12, marginTop: 2 },
   chipsRow: { marginBottom: 12, maxHeight: 40 },
+  categoryChipContainer: { alignItems: 'flex-start' },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -1153,6 +1163,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   chipText: { fontSize: 14, fontWeight: '600' },
+  categoryDeleteButton: {
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  categoryDeleteText: { fontSize: 12, fontWeight: '700' },
   selectBar: {
     flexDirection: 'row',
     alignItems: 'center',
