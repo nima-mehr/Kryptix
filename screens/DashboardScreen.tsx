@@ -1,29 +1,29 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
-  BackHandler,
-  Clipboard,
-  FlatList,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    BackHandler,
+    Clipboard,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeMode, useTheme } from '../context/ThemeContext';
 import { addCategory, deleteCategory, loadCategories } from '../utils/categories';
 import { commitImport, exportAsCSV, exportAsJSON, pickAndParseImportFile } from '../utils/importExport';
 import {
-  addPassword,
-  deletePassword,
-  deletePasswords,
-  loadVault,
-  PasswordEntry,
-  updatePassword,
+    addPassword,
+    deletePassword,
+    deletePasswords,
+    loadVault,
+    PasswordEntry,
+    updatePassword,
 } from '../utils/vault';
 
 type StrengthLevel = {
