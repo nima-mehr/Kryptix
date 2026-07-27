@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,10 @@ import {
   StyleSheet,
   Alert,
   Clipboard,
+  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import {
   addPassword,
   updatePassword,
@@ -113,6 +114,39 @@ const DashboardScreen = () => {
     loadData();
   }, []);
 
+  const clearForm = useCallback(() => {
+    setSite('');
+    setUsername('');
+    setPassword('');
+    setShowFormPassword(false);
+    setEditingId(null);
+  }, []);
+
+  // Back gesture / hardware back: cancel in-app actions instead of leaving the app
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (showThemePicker) {
+          setShowThemePicker(false);
+          return true;
+        }
+        if (confirmingDeleteId) {
+          setConfirmingDeleteId(null);
+          return true;
+        }
+        if (editingId) {
+          clearForm();
+          return true;
+        }
+        // Block default back so the app does not exit while on the vault
+        return true;
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [showThemePicker, confirmingDeleteId, editingId, clearForm])
+  );
+
   const generatePassword = (length = 16) => {
     const chars =
       'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
@@ -121,14 +155,6 @@ const DashboardScreen = () => {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     setPassword(result);
-  };
-
-  const clearForm = () => {
-    setSite('');
-    setUsername('');
-    setPassword('');
-    setShowFormPassword(false);
-    setEditingId(null);
   };
 
   const startEdit = (entry: PasswordEntry) => {
