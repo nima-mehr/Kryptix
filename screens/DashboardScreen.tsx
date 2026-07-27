@@ -19,6 +19,7 @@ import {
   deletePassword,
   PasswordEntry,
 } from '../utils/vault';
+import { exportAsJSON, exportAsCSV, importFromFile } from '../utils/importExport';
 import { useTheme, ThemeMode } from '../context/ThemeContext';
 
 // ====================== PASSWORD STRENGTH ======================
@@ -101,6 +102,7 @@ const DashboardScreen = () => {
   const [showFormPassword, setShowFormPassword] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const strength = useMemo(() => calculateStrength(password), [password]);
   const isEditing = editingId !== null;
@@ -122,12 +124,15 @@ const DashboardScreen = () => {
     setEditingId(null);
   }, []);
 
-  // Back: cancel in-app actions first; otherwise let the system exit the app
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
         if (showThemePicker) {
           setShowThemePicker(false);
+          return true;
+        }
+        if (showExportMenu) {
+          setShowExportMenu(false);
           return true;
         }
         if (confirmingDeleteId) {
@@ -138,13 +143,12 @@ const DashboardScreen = () => {
           clearForm();
           return true;
         }
-        // No active action → allow default behavior (quit app)
         return false;
       };
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
-    }, [showThemePicker, confirmingDeleteId, editingId, clearForm])
+    }, [showThemePicker, showExportMenu, confirmingDeleteId, editingId, clearForm])
   );
 
   const generatePassword = (length = 16) => {
@@ -189,7 +193,6 @@ const DashboardScreen = () => {
     await deletePassword(id);
     setVault(await loadVault());
     setConfirmingDeleteId(null);
-    // If we were editing this entry, cancel edit mode
     if (editingId === id) {
       clearForm();
     }
@@ -207,6 +210,40 @@ const DashboardScreen = () => {
     Clipboard.setString(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const handleExportJSON = async () => {
+    setShowExportMenu(false);
+    try {
+      await exportAsJSON();
+    } catch (e: any) {
+      Alert.alert('Export failed', e?.message || 'Could not export vault');
+    }
+  };
+
+  const handleExportCSV = async () => {
+    setShowExportMenu(false);
+    try {
+      await exportAsCSV();
+    } catch (e: any) {
+      Alert.alert('Export failed', e?.message || 'Could not export vault');
+    }
+  };
+
+  const handleImport = async () => {
+    try {
+      const result = await importFromFile();
+      if (result.total === 0) return; // user cancelled
+
+      setVault(await loadVault());
+
+      Alert.alert(
+        'Import complete',
+        `Imported: ${result.imported}\nSkipped (duplicates): ${result.skipped}\nTotal in file: ${result.total}`
+      );
+    } catch (e: any) {
+      Alert.alert('Import failed', e?.message || 'Could not import file');
+    }
   };
 
   const handleLogout = () => {
@@ -283,6 +320,40 @@ const DashboardScreen = () => {
         </View>
       )}
 
+      {/* Import / Export bar */}
+      <View style={styles.ioBar}>
+        <TouchableOpacity
+          style={[styles.ioBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={handleImport}
+        >
+          <Text style={[styles.ioBtnText, { color: colors.text }]}>Import</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.ioBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => setShowExportMenu(!showExportMenu)}
+        >
+          <Text style={[styles.ioBtnText, { color: colors.text }]}>Export</Text>
+        </TouchableOpacity>
+      </View>
+
+      {showExportMenu && (
+        <View style={[styles.exportMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity style={styles.exportOption} onPress={handleExportJSON}>
+            <Text style={[styles.exportOptionText, { color: colors.text }]}>Export as JSON</Text>
+            <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
+              Full backup (recommended)
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.exportOption} onPress={handleExportCSV}>
+            <Text style={[styles.exportOptionText, { color: colors.text }]}>Export as CSV</Text>
+            <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
+              Compatible with Chrome / Firefox
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Add / Edit Form */}
       <View style={[styles.form, { backgroundColor: colors.card }]}>
         {isEditing && (
@@ -310,7 +381,6 @@ const DashboardScreen = () => {
           autoCapitalize="none"
         />
 
-        {/* Password field + Show + Copy buttons */}
         <View style={styles.passwordInputRow}>
           <TextInput
             placeholder="Password"
@@ -357,7 +427,6 @@ const DashboardScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Strength Meter */}
         {password.length > 0 && (
           <View style={styles.strengthContainer}>
             <View style={styles.strengthBars}>
@@ -517,7 +586,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   title: {
     fontSize: 22,
@@ -543,7 +612,7 @@ const styles = StyleSheet.create({
   themePicker: {
     borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 16,
+    marginBottom: 12,
     overflow: 'hidden',
   },
   themeOption: {
@@ -557,6 +626,40 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: '500',
+  },
+  ioBar: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  ioBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  ioBtnText: {
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  exportMenu: {
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  exportOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  exportOptionText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  exportOptionHint: {
+    fontSize: 12,
+    marginTop: 2,
   },
   form: {
     padding: 16,
