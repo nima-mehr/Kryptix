@@ -1,22 +1,38 @@
 import { Stack } from 'expo-router';
+import { ThemeProvider, useTheme } from '../context/ThemeContext';
+import { StatusBar } from 'expo-status-bar';
+
+function RootLayoutNav() {
+  const { isDark, colors } = useTheme();
+
+  return (
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <Stack
+        initialRouteName="login"
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.card },
+          headerTintColor: colors.text,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Stack.Screen
+          name="login"
+          options={{ title: 'Kryptix - Login', headerShown: false }}
+        />
+        <Stack.Screen
+          name="dashboard"
+          options={{ title: 'Kryptix - Dashboard', headerShown: false }}
+        />
+      </Stack>
+    </>
+  );
+}
 
 export default function Layout() {
   return (
-    <Stack
-      initialRouteName="login"
-      screenOptions={{
-        headerStyle: { backgroundColor: '#f8f8f8' },
-        headerTintColor: '#333',
-      }}
-    >
-      <Stack.Screen
-        name="login"
-        options={{ title: 'Kryptix - Login', headerShown: false }}
-      />
-      <Stack.Screen
-        name="dashboard"
-        options={{ title: 'Kryptix - Dashboard' }}
-      />
-    </Stack>
+    <ThemeProvider>
+      <RootLayoutNav />
+    </ThemeProvider>
   );
 }
