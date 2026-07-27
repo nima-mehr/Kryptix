@@ -8,11 +8,12 @@ import { loadVault, saveVault, PasswordEntry } from './vault';
 export const exportAsJSON = async (): Promise<void> => {
   const vault = await loadVault();
   const json = JSON.stringify(vault, null, 2);
-  const fileUri = FileSystem.cacheDirectory + 'kryptix-export.json';
+  const base = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+  if (!base) throw new Error('No writable directory available');
 
-  await FileSystem.writeAsStringAsync(fileUri, json, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
+  const fileUri = base + 'kryptix-export.json';
+
+  await FileSystem.writeAsStringAsync(fileUri, json);
 
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(fileUri, {
@@ -38,11 +39,12 @@ export const exportAsCSV = async (): Promise<void> => {
   });
 
   const csv = [header, ...rows].join('\n');
-  const fileUri = FileSystem.cacheDirectory + 'kryptix-export.csv';
+  const base = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+  if (!base) throw new Error('No writable directory available');
 
-  await FileSystem.writeAsStringAsync(fileUri, csv, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
+  const fileUri = base + 'kryptix-export.csv';
+
+  await FileSystem.writeAsStringAsync(fileUri, csv);
 
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(fileUri, {
@@ -86,9 +88,7 @@ export const pickAndParseImportFile = async (): Promise<PasswordEntry[] | null> 
   }
 
   const file = result.assets[0];
-  const content = await FileSystem.readAsStringAsync(file.uri, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
+  const content = await FileSystem.readAsStringAsync(file.uri);
 
   const name = (file.name || '').toLowerCase();
   let entries: PasswordEntry[] = [];
