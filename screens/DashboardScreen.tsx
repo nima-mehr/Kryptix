@@ -11,7 +11,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { addPassword, loadVault, deletePassword, PasswordEntry } from '../utils/vault';
+import {
+  addPassword,
+  updatePassword,
+  loadVault,
+  deletePassword,
+  PasswordEntry,
+} from '../utils/vault';
 import { useTheme, ThemeMode } from '../context/ThemeContext';
 
 // ====================== PASSWORD STRENGTH ======================
@@ -93,8 +99,10 @@ const DashboardScreen = () => {
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [showFormPassword, setShowFormPassword] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const strength = useMemo(() => calculateStrength(password), [password]);
+  const isEditing = editingId !== null;
 
   useEffect(() => {
     const loadData = async () => {
@@ -115,22 +123,39 @@ const DashboardScreen = () => {
     setPassword(result);
   };
 
-  const handleAdd = async () => {
+  const clearForm = () => {
+    setSite('');
+    setUsername('');
+    setPassword('');
+    setShowFormPassword(false);
+    setEditingId(null);
+  };
+
+  const startEdit = (entry: PasswordEntry) => {
+    setEditingId(entry.id);
+    setSite(entry.site);
+    setUsername(entry.username);
+    setPassword(entry.password);
+    setShowFormPassword(false);
+    setConfirmingDeleteId(null);
+  };
+
+  const handleSave = async () => {
     if (!site || !username || !password) {
       Alert.alert('Error', 'Please fill all fields');
       return;
     }
 
     try {
-      await addPassword({ site, username, password });
+      if (isEditing && editingId) {
+        await updatePassword(editingId, { site, username, password });
+      } else {
+        await addPassword({ site, username, password });
+      }
       setVault(await loadVault());
-      setSite('');
-      setUsername('');
-      setPassword('');
-      setShowFormPassword(false);
-      // Success feedback removed — silent save
+      clearForm();
     } catch (error) {
-      Alert.alert('Error', 'Failed to save password');
+      Alert.alert('Error', isEditing ? 'Failed to update password' : 'Failed to save password');
     }
   };
 
@@ -138,6 +163,10 @@ const DashboardScreen = () => {
     await deletePassword(id);
     setVault(await loadVault());
     setConfirmingDeleteId(null);
+    // If we were editing this entry, cancel edit mode
+    if (editingId === id) {
+      clearForm();
+    }
   };
 
   const togglePasswordVisibility = (id: string) => {
@@ -228,8 +257,17 @@ const DashboardScreen = () => {
         </View>
       )}
 
-      {/* Add Form */}
+      {/* Add / Edit Form */}
       <View style={[styles.form, { backgroundColor: colors.card }]}>
+        {isEditing && (
+          <View style={styles.editingBanner}>
+            <Text style={[styles.editingText, { color: colors.tint }]}>Editing entry</Text>
+            <TouchableOpacity onPress={clearForm}>
+              <Text style={[styles.cancelEditText, { color: colors.textSecondary }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <TextInput
           placeholder="Site / App"
           placeholderTextColor={colors.textSecondary}
@@ -330,9 +368,9 @@ const DashboardScreen = () => {
 
           <TouchableOpacity
             style={[styles.addBtn, { backgroundColor: colors.tint }]}
-            onPress={handleAdd}
+            onPress={handleSave}
           >
-            <Text style={styles.addBtnText}>Add Password</Text>
+            <Text style={styles.addBtnText}>{isEditing ? 'Update' : 'Add Password'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -346,9 +384,19 @@ const DashboardScreen = () => {
           const isVisible = visiblePasswords[item.id];
           const isCopied = copiedId === item.id;
           const isConfirmingDelete = confirmingDeleteId === item.id;
+          const isBeingEdited = editingId === item.id;
 
           return (
-            <View style={[styles.entry, { backgroundColor: colors.card }]}>
+            <View
+              style={[
+                styles.entry,
+                {
+                  backgroundColor: colors.card,
+                  borderWidth: isBeingEdited ? 1.5 : 0,
+                  borderColor: isBeingEdited ? colors.tint : 'transparent',
+                },
+              ]}
+            >
               <Text style={[styles.site, { color: colors.text }]}>{item.site}</Text>
               <Text style={[styles.label, { color: colors.textSecondary }]}>Username</Text>
               <Text style={[styles.value, { color: colors.text }]}>{item.username}</Text>
@@ -387,6 +435,13 @@ const DashboardScreen = () => {
                       >
                         {isCopied ? 'Copied!' : 'Copy'}
                       </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                      onPress={() => startEdit(item)}
+                    >
+                      <Text style={[styles.actionText, { color: colors.tint }]}>Edit</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -481,6 +536,20 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
+  },
+  editingBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  editingText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cancelEditText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   input: {
     borderWidth: 1,
@@ -585,7 +654,8 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     marginTop: 14,
-    gap: 12,
+    gap: 10,
+    flexWrap: 'wrap',
   },
   actionBtn: {
     paddingVertical: 6,
