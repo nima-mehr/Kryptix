@@ -14,15 +14,16 @@ function RootLayoutNav() {
           headerStyle: { backgroundColor: colors.card },
           headerTintColor: colors.text,
           contentStyle: { backgroundColor: colors.background },
+          gestureEnabled: false,
         }}
       >
         <Stack.Screen
           name="login"
-          options={{ title: 'Kryptix - Login', headerShown: false }}
+          options={{ title: 'Kryptix - Login', headerShown: false, gestureEnabled: false }}
         />
         <Stack.Screen
           name="dashboard"
-          options={{ title: 'Kryptix - Dashboard', headerShown: false }}
+          options={{ title: 'Kryptix - Dashboard', headerShown: false, gestureEnabled: false }}
         />
       </Stack>
     </>
