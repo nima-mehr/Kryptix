@@ -679,7 +679,7 @@ const DashboardScreen = () => {
               {allFilteredSelected ? <Text style={styles.checkmark}>✓</Text> : null}
             </View>
             <Text style={[styles.selectBarText, { color: colors.text }]}>
-              {selectedCount > 0 ? `${selectedCount} selected` : 'Select'}
+              {selectedCount > 0 ? `${selectedCount} selected` : 'Select all'}
             </Text>
           </TouchableOpacity>
 
