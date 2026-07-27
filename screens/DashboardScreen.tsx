@@ -644,24 +644,17 @@ const DashboardScreen = () => {
                   {
                     backgroundColor: selectedCategory === cat ? colors.tint : colors.card,
                     borderColor: colors.border,
+                    borderWidth: isExpanded ? 2 : 1,
                   },
                 ]}
                 onPress={() => {
                   setSelectedCategory(cat);
-                  setExpandedCategory(null);
+                  if (isExpanded) {
+                    setExpandedCategory(null);
+                  } else {
+                    setExpandedCategory(cat);
+                  }
                 }}
-                onLongPress={() => setExpandedCategory(isExpanded ? null : cat)}
-              >
-                <Text style={[styles.chipText, { color: selectedCategory === cat ? '#fff' : colors.text }]}>
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-
-              {isExpanded && (
-                <TouchableOpacity
-                  style={[styles.categoryDeleteButton, { backgroundColor: colors.dangerBackground }]}
-                  onPress={() => handleDeleteCategory(cat)}
-                >
                   <Text style={[styles.categoryDeleteText, { color: colors.danger }]}>Delete</Text>
                 </TouchableOpacity>
               )}
@@ -1155,7 +1148,7 @@ const styles = StyleSheet.create({
   exportOptionText: { fontSize: 15, fontWeight: '600' },
   exportOptionHint: { fontSize: 12, marginTop: 2 },
   chipsRow: { marginBottom: 12, maxHeight: 40 },
-  categoryChipContainer: { alignItems: 'flex-start' },
+  categoryChipContainer: { alignItems: 'flex-start', marginBottom: 6 },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -1166,8 +1159,10 @@ const styles = StyleSheet.create({
   categoryDeleteButton: {
     marginTop: 6,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 10,
+    minWidth: 72,
+    alignItems: 'center',
   },
   categoryDeleteText: { fontSize: 12, fontWeight: '700' },
   selectBar: {
