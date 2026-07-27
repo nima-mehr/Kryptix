@@ -6,8 +6,8 @@ import { loadVault, saveVault, PasswordEntry } from './vault';
 
 // ====================== EXPORT ======================
 
-export const exportAsJSON = async (): Promise<void> => {
-  const vault = await loadVault();
+export const exportAsJSON = async (entries?: PasswordEntry[]): Promise<void> => {
+  const vault = entries ?? (await loadVault());
   const json = JSON.stringify(vault, null, 2);
 
   const base = FileSystem.cacheDirectory || FileSystem.documentDirectory;
@@ -27,8 +27,8 @@ export const exportAsJSON = async (): Promise<void> => {
   }
 };
 
-export const exportAsCSV = async (): Promise<void> => {
-  const vault = await loadVault();
+export const exportAsCSV = async (entries?: PasswordEntry[]): Promise<void> => {
+  const vault = entries ?? (await loadVault());
 
   // Chromium-compatible: name,url,username,password,note
   const header = 'name,url,username,password,note';
@@ -186,7 +186,6 @@ const parseCSV = (content: string): PasswordEntry[] => {
     return -1;
   };
 
-  // Chromium: name, url, username, password, note
   const nameIdx = findCol('name', 'title', 'site');
   const urlIdx = findCol('url', 'website', 'origin');
   const userIdx = findCol('username', 'user', 'login', 'email');
