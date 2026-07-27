@@ -14,7 +14,6 @@ export const exportAsJSON = async (): Promise<void> => {
   if (!base) throw new Error('No writable directory available');
 
   const fileUri = `${base}kryptix-export.json`;
-
   await FileSystem.writeAsStringAsync(fileUri, json);
 
   if (await Sharing.isAvailableAsync()) {
@@ -31,13 +30,15 @@ export const exportAsJSON = async (): Promise<void> => {
 export const exportAsCSV = async (): Promise<void> => {
   const vault = await loadVault();
 
-  const header = 'name,url,username,password';
+  // Chromium-compatible: name,url,username,password,note
+  const header = 'name,url,username,password,note';
   const rows = vault.map((entry) => {
     const name = escapeCSV(entry.site);
-    const url = escapeCSV(entry.site.startsWith('http') ? entry.site : '');
+    const url = escapeCSV(entry.url || '');
     const username = escapeCSV(entry.username);
     const password = escapeCSV(entry.password);
-    return `${name},${url},${username},${password}`;
+    const note = escapeCSV(entry.notes || '');
+    return `${name},${url},${username},${password},${note}`;
   });
 
   const csv = [header, ...rows].join('\n');
@@ -46,7 +47,6 @@ export const exportAsCSV = async (): Promise<void> => {
   if (!base) throw new Error('No writable directory available');
 
   const fileUri = `${base}kryptix-export.csv`;
-
   await FileSystem.writeAsStringAsync(fileUri, csv);
 
   if (await Sharing.isAvailableAsync()) {
@@ -76,10 +76,6 @@ export type ImportResult = {
   cancelled?: boolean;
 };
 
-/**
- * Pick a file and parse it, but do NOT save yet.
- * Returns the parsed entries so the UI can ask for a category first.
- */
 export const pickAndParseImportFile = async (): Promise<PasswordEntry[] | null> => {
   const result = await DocumentPicker.getDocumentAsync({
     type: ['text/csv', 'text/comma-separated-values', 'application/json', 'text/plain', '*/*'],
@@ -109,9 +105,6 @@ export const pickAndParseImportFile = async (): Promise<PasswordEntry[] | null> 
   return entries;
 };
 
-/**
- * Save previously parsed entries into the vault, optionally into a category.
- */
 export const commitImport = async (
   entries: PasswordEntry[],
   category?: string | null
@@ -163,12 +156,13 @@ const parseJSON = (content: string): PasswordEntry[] => {
     .map((item) => ({
       id: item.id || generateId(),
       site: item.site || item.name || item.title || 'Unknown',
+      url: item.url || item.website || '',
       username: item.username || item.user || item.email || '',
       password: item.password,
+      notes: item.notes || item.note || '',
       createdAt: item.createdAt || now,
       updatedAt: item.updatedAt || now,
       favorite: item.favorite ?? false,
-      notes: item.notes,
       category: item.category,
     }));
 };
@@ -186,16 +180,18 @@ const parseCSV = (content: string): PasswordEntry[] => {
 
   const findCol = (...names: string[]) => {
     for (const name of names) {
-      const idx = headers.findIndex((h) => h.includes(name));
+      const idx = headers.findIndex((h) => h === name || h.includes(name));
       if (idx !== -1) return idx;
     }
     return -1;
   };
 
+  // Chromium: name, url, username, password, note
   const nameIdx = findCol('name', 'title', 'site');
   const urlIdx = findCol('url', 'website', 'origin');
   const userIdx = findCol('username', 'user', 'login', 'email');
   const passIdx = findCol('password', 'pass');
+  const noteIdx = findCol('note', 'notes', 'comment');
 
   if (passIdx === -1) {
     throw new Error('Could not find password column in CSV');
@@ -211,18 +207,22 @@ const parseCSV = (content: string): PasswordEntry[] => {
     const password = cols[passIdx]?.trim();
     if (!password) continue;
 
-    const site =
+    const name =
       (nameIdx !== -1 ? cols[nameIdx] : '') ||
       (urlIdx !== -1 ? cols[urlIdx] : '') ||
       'Imported';
 
+    const url = urlIdx !== -1 ? cols[urlIdx] || '' : '';
     const username = userIdx !== -1 ? cols[userIdx] || '' : '';
+    const notes = noteIdx !== -1 ? cols[noteIdx] || '' : '';
 
     entries.push({
       id: generateId(),
-      site: site.trim(),
+      site: name.trim(),
+      url: url.trim(),
       username: username.trim(),
       password,
+      notes: notes.trim() || undefined,
       createdAt: now,
       updatedAt: now,
       favorite: false,
