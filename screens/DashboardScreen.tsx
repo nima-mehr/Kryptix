@@ -11,10 +11,11 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { addPassword, loadVault, deletePassword, PasswordEntry } from '../utils/vault';
+import { useTheme, ThemeMode } from '../context/ThemeContext';
 
 // ====================== PASSWORD STRENGTH ======================
 type StrengthLevel = {
-  score: number; // 0-4
+  score: number;
   label: string;
   color: string;
   feedback: string;
@@ -28,12 +29,10 @@ const calculateStrength = (password: string): StrengthLevel => {
   let score = 0;
   const feedbacks: string[] = [];
 
-  // Length
   if (password.length >= 8) score += 1;
   if (password.length >= 12) score += 1;
   if (password.length >= 16) score += 1;
 
-  // Character variety
   const hasLower = /[a-z]/.test(password);
   const hasUpper = /[A-Z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
@@ -43,34 +42,22 @@ const calculateStrength = (password: string): StrengthLevel => {
   if (varietyCount >= 3) score += 1;
   if (varietyCount === 4) score += 1;
 
-  // Penalties for common weaknesses
-  if (password.length < 8) {
-    feedbacks.push('Too short');
-  }
-  if (!hasLower || !hasUpper) {
-    feedbacks.push('Mix upper & lower case');
-  }
-  if (!hasNumber) {
-    feedbacks.push('Add numbers');
-  }
-  if (!hasSymbol) {
-    feedbacks.push('Add symbols');
-  }
+  if (password.length < 8) feedbacks.push('Too short');
+  if (!hasLower || !hasUpper) feedbacks.push('Mix upper & lower case');
+  if (!hasNumber) feedbacks.push('Add numbers');
+  if (!hasSymbol) feedbacks.push('Add symbols');
 
-  // Detect very common patterns
   const commonPatterns = ['password', '123456', 'qwerty', 'abc123', 'letmein', 'admin'];
   if (commonPatterns.some((p) => password.toLowerCase().includes(p))) {
     score = Math.max(0, score - 2);
     feedbacks.push('Avoid common words');
   }
 
-  // Sequential characters penalty
   if (/(.)\1{2,}/.test(password) || /012|123|234|345|456|567|678|789|abc|bcd|cde/.test(password.toLowerCase())) {
     score = Math.max(0, score - 1);
     feedbacks.push('Avoid sequences');
   }
 
-  // Cap score at 4
   score = Math.min(4, Math.max(0, score));
 
   const levels: Record<number, { label: string; color: string }> = {
@@ -92,13 +79,16 @@ const calculateStrength = (password: string): StrengthLevel => {
 // ====================== COMPONENT ======================
 const DashboardScreen = () => {
   const router = useRouter();
+  const { colors, mode, setMode, isDark } = useTheme();
+
   const [vault, setVault] = useState<PasswordEntry[]>([]);
   const [site, setSite] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(true);
   const [visiblePasswords, setVisiblePasswords] = useState<{ [key: string]: boolean }>({});
-  const [copiedId, setCopiedId] = useState<string | null>(null); // tracks which button was copied
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showThemePicker, setShowThemePicker] = useState(false);
 
   const strength = useMemo(() => calculateStrength(password), [password]);
 
@@ -162,24 +152,25 @@ const DashboardScreen = () => {
 
   const copyToClipboard = (text: string, id: string = 'form') => {
     if (!text) return;
-
     Clipboard.setString(text);
     setCopiedId(id);
-
-    // Reset after 1.5 seconds
-    setTimeout(() => {
-      setCopiedId(null);
-    }, 1500);
+    setTimeout(() => setCopiedId(null), 1500);
   };
 
   const handleLogout = () => {
     router.replace('/login');
   };
 
+  const themeOptions: { key: ThemeMode; label: string; icon: string }[] = [
+    { key: 'light', label: 'Light', icon: '☀️' },
+    { key: 'dark', label: 'Dark', icon: '🌙' },
+    { key: 'system', label: 'System', icon: '⚙️' },
+  ];
+
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text>Loading your vault...</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.text }}>Loading your vault...</Text>
       </View>
     );
   }
@@ -187,27 +178,65 @@ const DashboardScreen = () => {
   const isFormCopied = copiedId === 'form';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>🔐 Kryptix Vault</Text>
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix Vault</Text>
+
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={[styles.themeBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => setShowThemePicker(!showThemePicker)}
+          >
+            <Text style={{ fontSize: 16 }}>
+              {mode === 'light' ? '☀️' : mode === 'dark' ? '🌙' : '⚙️'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={handleLogout}>
+            <Text style={[styles.logoutText, { color: colors.tint }]}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {/* Theme Picker */}
+      {showThemePicker && (
+        <View style={[styles.themePicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {themeOptions.map((opt) => (
+            <TouchableOpacity
+              key={opt.key}
+              style={[
+                styles.themeOption,
+                mode === opt.key && { backgroundColor: colors.tint + '22' },
+              ]}
+              onPress={() => {
+                setMode(opt.key);
+                setShowThemePicker(false);
+              }}
+            >
+              <Text style={{ fontSize: 16 }}>{opt.icon}</Text>
+              <Text style={[styles.themeOptionText, { color: colors.text }]}>{opt.label}</Text>
+              {mode === opt.key && <Text style={{ color: colors.tint }}>✓</Text>}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {/* Add Form */}
-      <View style={styles.form}>
+      <View style={[styles.form, { backgroundColor: colors.card }]}>
         <TextInput
           placeholder="Site / App"
+          placeholderTextColor={colors.textSecondary}
           value={site}
           onChangeText={setSite}
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
         />
         <TextInput
           placeholder="Username / Email"
+          placeholderTextColor={colors.textSecondary}
           value={username}
           onChangeText={setUsername}
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
           autoCapitalize="none"
         />
 
@@ -215,15 +244,20 @@ const DashboardScreen = () => {
         <View style={styles.passwordInputRow}>
           <TextInput
             placeholder="Password"
+            placeholderTextColor={colors.textSecondary}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            style={[styles.input, styles.passwordInput]}
+            style={[
+              styles.input,
+              styles.passwordInput,
+              { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text },
+            ]}
           />
           <TouchableOpacity
             style={[
               styles.copyInputBtn,
-              isFormCopied && styles.copyInputBtnActive,
+              { backgroundColor: isFormCopied ? colors.successBackground : colors.tint + '18' },
               !password && { opacity: 0.4 },
             ]}
             onPress={() => copyToClipboard(password, 'form')}
@@ -232,7 +266,7 @@ const DashboardScreen = () => {
             <Text
               style={[
                 styles.copyInputBtnText,
-                isFormCopied && styles.copyInputBtnTextActive,
+                { color: isFormCopied ? colors.success : colors.tint },
               ]}
             >
               {isFormCopied ? 'Copied!' : 'Copy'}
@@ -250,7 +284,7 @@ const DashboardScreen = () => {
                   style={[
                     styles.strengthBar,
                     {
-                      backgroundColor: i <= strength.score ? strength.color : '#e0e0e0',
+                      backgroundColor: i <= strength.score ? strength.color : colors.border,
                     },
                   ]}
                 />
@@ -260,17 +294,25 @@ const DashboardScreen = () => {
               <Text style={[styles.strengthLabel, { color: strength.color }]}>
                 {strength.label}
               </Text>
-              <Text style={styles.strengthFeedback}>{strength.feedback}</Text>
+              <Text style={[styles.strengthFeedback, { color: colors.textSecondary }]}>
+                {strength.feedback}
+              </Text>
             </View>
           </View>
         )}
 
         <View style={styles.buttonRow}>
-          <TouchableOpacity style={styles.generateBtn} onPress={() => generatePassword()}>
+          <TouchableOpacity
+            style={[styles.generateBtn, { backgroundColor: colors.buttonSecondary }]}
+            onPress={() => generatePassword()}
+          >
             <Text style={styles.generateBtnText}>Generate</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.addBtn} onPress={handleAdd}>
+          <TouchableOpacity
+            style={[styles.addBtn, { backgroundColor: colors.tint }]}
+            onPress={handleAdd}
+          >
             <Text style={styles.addBtnText}>Add Password</Text>
           </TouchableOpacity>
         </View>
@@ -286,47 +328,59 @@ const DashboardScreen = () => {
           const isCopied = copiedId === item.id;
 
           return (
-            <View style={styles.entry}>
-              <Text style={styles.site}>{item.site}</Text>
-              <Text style={styles.label}>Username</Text>
-              <Text style={styles.value}>{item.username}</Text>
+            <View style={[styles.entry, { backgroundColor: colors.card }]}>
+              <Text style={[styles.site, { color: colors.text }]}>{item.site}</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Username</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{item.username}</Text>
 
-              <Text style={styles.label}>Password</Text>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
               <View style={styles.passwordRow}>
-                <Text style={styles.value}>
+                <Text style={[styles.value, { color: colors.text }]}>
                   {isVisible ? item.password : '••••••••••••'}
                 </Text>
               </View>
 
               <View style={styles.actions}>
                 <TouchableOpacity
-                  style={styles.actionBtn}
+                  style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
                   onPress={() => togglePasswordVisibility(item.id)}
                 >
-                  <Text style={styles.actionText}>{isVisible ? 'Hide' : 'Show'}</Text>
+                  <Text style={[styles.actionText, { color: colors.text }]}>
+                    {isVisible ? 'Hide' : 'Show'}
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.actionBtn, isCopied && styles.actionBtnCopied]}
+                  style={[
+                    styles.actionBtn,
+                    { backgroundColor: isCopied ? colors.successBackground : colors.overlay },
+                  ]}
                   onPress={() => copyToClipboard(item.password, item.id)}
                 >
-                  <Text style={[styles.actionText, isCopied && styles.actionTextCopied]}>
+                  <Text
+                    style={[
+                      styles.actionText,
+                      { color: isCopied ? colors.success : colors.text },
+                    ]}
+                  >
                     {isCopied ? 'Copied!' : 'Copy'}
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.actionBtn, styles.deleteBtn]}
+                  style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
                   onPress={() => handleDelete(item.id)}
                 >
-                  <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
+                  <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
                 </TouchableOpacity>
               </View>
             </View>
           );
         }}
         ListEmptyComponent={
-          <Text style={styles.empty}>No passwords saved yet.\nAdd your first one above!</Text>
+          <Text style={[styles.empty, { color: colors.textSecondary }]}>
+            No passwords saved yet.\nAdd your first one above!
+          </Text>
         }
       />
     </View>
@@ -337,41 +391,62 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: '#f5f5f5',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#222',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  themeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoutText: {
-    color: '#0066cc',
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 15,
+  },
+  themePicker: {
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  themeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  themeOptionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
   },
   form: {
-    backgroundColor: '#fff',
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
     padding: 14,
     marginBottom: 12,
     borderRadius: 10,
-    backgroundColor: '#fafafa',
     fontSize: 16,
   },
   passwordInputRow: {
@@ -385,23 +460,15 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   copyInputBtn: {
-    backgroundColor: '#e8f0fe',
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 10,
     minWidth: 70,
     alignItems: 'center',
   },
-  copyInputBtnActive: {
-    backgroundColor: '#e8f5e9',
-  },
   copyInputBtnText: {
-    color: '#0066cc',
     fontWeight: '600',
     fontSize: 14,
-  },
-  copyInputBtnTextActive: {
-    color: '#2e7d32',
   },
   strengthContainer: {
     marginBottom: 14,
@@ -427,7 +494,6 @@ const styles = StyleSheet.create({
   },
   strengthFeedback: {
     fontSize: 12,
-    color: '#888',
   },
   buttonRow: {
     flexDirection: 'row',
@@ -435,7 +501,6 @@ const styles = StyleSheet.create({
   },
   generateBtn: {
     flex: 1,
-    backgroundColor: '#6c757d',
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
@@ -447,7 +512,6 @@ const styles = StyleSheet.create({
   },
   addBtn: {
     flex: 1.5,
-    backgroundColor: '#0066cc',
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
@@ -458,27 +522,22 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   entry: {
-    backgroundColor: '#fff',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
-    elevation: 1,
   },
   site: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#222',
     marginBottom: 10,
   },
   label: {
     fontSize: 12,
-    color: '#888',
     marginTop: 6,
     marginBottom: 2,
   },
   value: {
     fontSize: 15,
-    color: '#333',
   },
   passwordRow: {
     marginBottom: 4,
@@ -491,29 +550,14 @@ const styles = StyleSheet.create({
   actionBtn: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: '#f0f0f0',
     borderRadius: 6,
-  },
-  actionBtnCopied: {
-    backgroundColor: '#e8f5e9',
   },
   actionText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#333',
-  },
-  actionTextCopied: {
-    color: '#2e7d32',
-  },
-  deleteBtn: {
-    backgroundColor: '#ffebee',
-  },
-  deleteText: {
-    color: '#d32f2f',
   },
   empty: {
     textAlign: 'center',
-    color: '#999',
     fontStyle: 'italic',
     marginTop: 40,
     lineHeight: 22,
