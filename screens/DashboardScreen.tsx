@@ -1,30 +1,30 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View,
+  Alert,
+  BackHandler,
+  Clipboard,
+  FlatList,
+  Modal,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
-  FlatList,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Clipboard,
-  BackHandler,
-  ScrollView,
-  Modal,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { ThemeMode, useTheme } from '../context/ThemeContext';
+import { addCategory, deleteCategory, loadCategories } from '../utils/categories';
+import { commitImport, exportAsCSV, exportAsJSON, pickAndParseImportFile } from '../utils/importExport';
 import {
   addPassword,
-  updatePassword,
-  loadVault,
   deletePassword,
   deletePasswords,
+  loadVault,
   PasswordEntry,
+  updatePassword,
 } from '../utils/vault';
-import { exportAsJSON, exportAsCSV, pickAndParseImportFile, commitImport } from '../utils/importExport';
-import { loadCategories, addCategory, deleteCategory } from '../utils/categories';
-import { useTheme, ThemeMode } from '../context/ThemeContext';
 
 type StrengthLevel = {
   score: number;
@@ -462,17 +462,21 @@ const DashboardScreen = () => {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            const data = await loadVault();
-            const updated = data.map((e) =>
-              e.category === name ? { ...e, category: undefined } : e
-            );
-            const { saveVault } = await import('../utils/vault');
-            await saveVault(updated);
-            const cats = await deleteCategory(name);
-            setCategories(cats);
-            setVault(updated);
-            if (selectedCategory === name) setSelectedCategory(null);
-            if (formCategory === name) setFormCategory(null);
+            try {
+              const data = await loadVault();
+              const updated = data.map((e) =>
+                e.category === name ? { ...e, category: undefined } : e
+              );
+              const { saveVault } = await import('../utils/vault');
+              await saveVault(updated);
+              const cats = await deleteCategory(name);
+              setCategories(cats);
+              setVault(updated);
+              if (selectedCategory === name) setSelectedCategory(null);
+              if (formCategory === name) setFormCategory(null);
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Could not delete category');
+            }
           },
         },
       ]
