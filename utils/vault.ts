@@ -45,6 +45,22 @@ export const addPassword = async (
   await saveVault(vault);
 };
 
+export const updatePassword = async (
+  id: string,
+  updates: Partial<Omit<PasswordEntry, 'id' | 'createdAt'>>
+): Promise<void> => {
+  const vault = await loadVault();
+  const index = vault.findIndex((e) => e.id === id);
+  if (index === -1) throw new Error('Entry not found');
+
+  vault[index] = {
+    ...vault[index],
+    ...updates,
+    updatedAt: Date.now(),
+  };
+  await saveVault(vault);
+};
+
 export const deletePassword = async (id: string): Promise<void> => {
   const vault = await loadVault();
   const filtered = vault.filter((e) => e.id !== id);
