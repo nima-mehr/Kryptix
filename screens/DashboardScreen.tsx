@@ -94,7 +94,6 @@ const DashboardScreen = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [formCategory, setFormCategory] = useState<string | null>(null);
 
-  // name stored in `site` field for backward compatibility
   const [site, setSite] = useState('');
   const [url, setUrl] = useState('');
   const [username, setUsername] = useState('');
@@ -113,6 +112,7 @@ const DashboardScreen = () => {
   const [showImportCategoryModal, setShowImportCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
+  const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
 
   const strength = useMemo(() => calculateStrength(password), [password]);
   const isEditing = editingId !== null;
@@ -146,6 +146,10 @@ const DashboardScreen = () => {
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
+        if (showCreateCategoryModal) {
+          setShowCreateCategoryModal(false);
+          return true;
+        }
         if (showImportCategoryModal) {
           setShowImportCategoryModal(false);
           setImportEntries(null);
@@ -172,7 +176,15 @@ const DashboardScreen = () => {
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
-    }, [showImportCategoryModal, showThemePicker, showExportMenu, confirmingDeleteId, editingId, clearForm])
+    }, [
+      showCreateCategoryModal,
+      showImportCategoryModal,
+      showThemePicker,
+      showExportMenu,
+      confirmingDeleteId,
+      editingId,
+      clearForm,
+    ])
   );
 
   const generatePassword = (length = 16) => {
@@ -241,6 +253,28 @@ const DashboardScreen = () => {
     Clipboard.setString(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const openCreateCategory = () => {
+    setNewCategoryName('');
+    setShowCreateCategoryModal(true);
+  };
+
+  const handleCreateCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) {
+      Alert.alert('Error', 'Please enter a category name');
+      return;
+    }
+    try {
+      const updated = await addCategory(name);
+      setCategories(updated);
+      setFormCategory(name);
+      setShowCreateCategoryModal(false);
+      setNewCategoryName('');
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not create category');
+    }
   };
 
   const handleExportJSON = async () => {
@@ -433,7 +467,9 @@ const DashboardScreen = () => {
           ]}
           onPress={() => setSelectedCategory(null)}
         >
-          <Text style={[styles.chipText, { color: selectedCategory === null ? '#fff' : colors.text }]}>All</Text>
+          <Text style={[styles.chipText, { color: selectedCategory === null ? '#fff' : colors.text }]}>
+            All
+          </Text>
         </TouchableOpacity>
 
         {categories.map((cat) => (
@@ -449,9 +485,18 @@ const DashboardScreen = () => {
             onPress={() => setSelectedCategory(cat)}
             onLongPress={() => handleDeleteCategory(cat)}
           >
-            <Text style={[styles.chipText, { color: selectedCategory === cat ? '#fff' : colors.text }]}>{cat}</Text>
+            <Text style={[styles.chipText, { color: selectedCategory === cat ? '#fff' : colors.text }]}>
+              {cat}
+            </Text>
           </TouchableOpacity>
         ))}
+
+        <TouchableOpacity
+          style={[styles.chip, { backgroundColor: colors.card, borderColor: colors.tint, borderStyle: 'dashed' }]}
+          onPress={openCreateCategory}
+        >
+          <Text style={[styles.chipText, { color: colors.tint }]}>+ Add</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <View style={[styles.form, { backgroundColor: colors.card }]}>
@@ -506,7 +551,7 @@ const DashboardScreen = () => {
             ]}
             onPress={() => setFormCategory(null)}
           >
-            <Text style={[styles.chipText, { color: colors.text, fontSize: 13 }]}>No category</Text>
+            <Text style={[styles.chipText, { color: colors.text, fontSize: 13 }]}>Main list</Text>
           </TouchableOpacity>
           {categories.map((cat) => (
             <TouchableOpacity
@@ -523,6 +568,19 @@ const DashboardScreen = () => {
               <Text style={[styles.chipText, { color: colors.text, fontSize: 13 }]}>{cat}</Text>
             </TouchableOpacity>
           ))}
+          <TouchableOpacity
+            style={[
+              styles.chip,
+              {
+                backgroundColor: colors.inputBackground,
+                borderColor: colors.tint,
+                borderStyle: 'dashed',
+              },
+            ]}
+            onPress={openCreateCategory}
+          >
+            <Text style={[styles.chipText, { color: colors.tint, fontSize: 13 }]}>+ Add</Text>
+          </TouchableOpacity>
         </ScrollView>
 
         <View style={styles.passwordInputRow}>
@@ -742,6 +800,41 @@ const DashboardScreen = () => {
         }
       />
 
+      {/* Create category modal */}
+      <Modal visible={showCreateCategoryModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>New category</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Give this folder a name (e.g. Brave, Work)
+            </Text>
+            <TextInput
+              placeholder="Category name"
+              placeholderTextColor={colors.textSecondary}
+              value={newCategoryName}
+              onChangeText={setNewCategoryName}
+              style={[
+                styles.input,
+                { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text },
+              ]}
+              autoFocus
+            />
+            <TouchableOpacity
+              style={[styles.addBtn, { backgroundColor: colors.tint, flex: 0 }]}
+              onPress={handleCreateCategory}
+            >
+              <Text style={styles.addBtnText}>Create</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ marginTop: 14, alignItems: 'center' }}
+              onPress={() => setShowCreateCategoryModal(false)}
+            >
+              <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={showImportCategoryModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
@@ -754,7 +847,7 @@ const DashboardScreen = () => {
               style={[styles.modalOption, { borderColor: colors.border }]}
               onPress={() => finishImport(null)}
             >
-              <Text style={[styles.modalOptionText, { color: colors.text }]}>Main list (no category)</Text>
+              <Text style={[styles.modalOptionText, { color: colors.text }]}>Main list</Text>
             </TouchableOpacity>
 
             {categories.map((cat) => (
@@ -788,7 +881,7 @@ const DashboardScreen = () => {
                   autoFocus
                 />
                 <TouchableOpacity
-                  style={[styles.addBtn, { backgroundColor: colors.tint, marginTop: 4 }]}
+                  style={[styles.addBtn, { backgroundColor: colors.tint, marginTop: 4, flex: 0 }]}
                   onPress={() => finishImport(newCategoryName.trim() || null)}
                 >
                   <Text style={styles.addBtnText}>Import into new category</Text>
