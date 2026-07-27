@@ -633,7 +633,7 @@ const DashboardScreen = () => {
           </Text>
         </TouchableOpacity>
 
-{categories.map((cat) => {
+        {categories.map((cat) => {
           const isExpanded = expandedCategory === cat;
 
           return (
@@ -666,6 +666,28 @@ const DashboardScreen = () => {
                   style={[styles.categoryDeleteButton, { backgroundColor: colors.dangerBackground }]}
                   onPress={() => handleDeleteCategory(cat)}
                 >
+                  <Text style={[styles.categoryDeleteText, { color: colors.danger }]}>Delete</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })}
+
+        <TouchableOpacity
+          style={[styles.chip, { backgroundColor: colors.card, borderColor: colors.tint, borderStyle: 'dashed' }]}
+          onPress={openCreateCategory}
+        >
+          <Text style={[styles.chipText, { color: colors.tint }]}>+ Add</Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      {filteredVault.length > 0 && (
+        <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity onPress={toggleSelectAllFiltered} style={styles.selectBarLeft}>
+            <View
+              style={[
+                styles.checkbox,
+                {
                   borderColor: colors.tint,
                   backgroundColor: allFilteredSelected ? colors.tint : 'transparent',
                 },
