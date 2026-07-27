@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
+import { useTheme } from '../context/ThemeContext';
 
 const MASTER_PASSWORD_KEY = 'kryptix_master_password';
 
 const LoginScreen = () => {
   const router = useRouter();
+  const { colors } = useTheme();
   const [masterPassword, setMasterPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -22,14 +32,12 @@ const LoginScreen = () => {
       const storedPassword = await SecureStore.getItemAsync(MASTER_PASSWORD_KEY);
 
       if (storedPassword) {
-        // Existing user: check password
         if (masterPassword === storedPassword) {
           router.replace('/dashboard');
         } else {
           Alert.alert('Error', 'Incorrect master password');
         }
       } else {
-        // First-time user: save password and continue
         await SecureStore.setItemAsync(MASTER_PASSWORD_KEY, masterPassword);
         Alert.alert('Success', 'Master password created!');
         router.replace('/dashboard');
@@ -43,13 +51,23 @@ const LoginScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>🔐 Kryptix</Text>
-      <Text style={styles.subtitle}>Your Offline Password Manager</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix</Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+        Your Offline Password Manager
+      </Text>
 
       <TextInput
-        style={styles.input}
+        style={[
+          styles.input,
+          {
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.border,
+            color: colors.text,
+          },
+        ]}
         placeholder="Enter Master Password"
+        placeholderTextColor={colors.textSecondary}
         value={masterPassword}
         onChangeText={setMasterPassword}
         secureTextEntry
@@ -57,13 +75,23 @@ const LoginScreen = () => {
         editable={!isLoading}
       />
 
-      <Button
-        title={isLoading ? "Unlocking..." : "Unlock Vault"}
+      <TouchableOpacity
+        style={[
+          styles.button,
+          { backgroundColor: colors.tint },
+          (isLoading || !masterPassword) && { opacity: 0.6 },
+        ]}
         onPress={handleLogin}
         disabled={isLoading || !masterPassword}
-      />
+      >
+        {isLoading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Unlock Vault</Text>
+        )}
+      </TouchableOpacity>
 
-      <Text style={styles.info}>
+      <Text style={[styles.info, { color: colors.textSecondary }]}>
         First time? Just enter a new password to create your vault.
       </Text>
     </View>
@@ -75,33 +103,37 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 30,
-    backgroundColor: '#fff',
   },
   title: {
     fontSize: 36,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 10,
-    color: '#333',
   },
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
-    color: '#666',
     marginBottom: 40,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
     padding: 15,
     fontSize: 18,
     borderRadius: 10,
     marginBottom: 20,
-    backgroundColor: '#f9f9f9',
+  },
+  button: {
+    paddingVertical: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   info: {
     textAlign: 'center',
-    color: '#888',
     fontSize: 14,
     marginTop: 30,
     fontStyle: 'italic',
