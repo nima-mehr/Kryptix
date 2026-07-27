@@ -99,6 +99,7 @@ const DashboardScreen = () => {
   const [url, setUrl] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [visiblePasswords, setVisiblePasswords] = useState<{ [key: string]: boolean }>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -136,6 +137,7 @@ const DashboardScreen = () => {
     setUrl('');
     setUsername('');
     setPassword('');
+    setNotes('');
     setShowFormPassword(false);
     setEditingId(null);
     setFormCategory(selectedCategory);
@@ -189,6 +191,7 @@ const DashboardScreen = () => {
     setUrl(entry.url || '');
     setUsername(entry.username);
     setPassword(entry.password);
+    setNotes(entry.notes || '');
     setFormCategory(entry.category || null);
     setShowFormPassword(false);
     setConfirmingDeleteId(null);
@@ -201,22 +204,19 @@ const DashboardScreen = () => {
     }
 
     try {
+      const payload = {
+        site,
+        url: url.trim() || undefined,
+        username,
+        password,
+        notes: notes.trim() || undefined,
+        category: formCategory || undefined,
+      };
+
       if (isEditing && editingId) {
-        await updatePassword(editingId, {
-          site,
-          url: url.trim() || undefined,
-          username,
-          password,
-          category: formCategory || undefined,
-        });
+        await updatePassword(editingId, payload);
       } else {
-        await addPassword({
-          site,
-          url: url.trim() || undefined,
-          username,
-          password,
-          category: formCategory || undefined,
-        });
+        await addPassword(payload);
       }
       setVault(await loadVault());
       clearForm();
@@ -579,6 +579,19 @@ const DashboardScreen = () => {
           </View>
         )}
 
+        <TextInput
+          placeholder="Note (optional)"
+          placeholderTextColor={colors.textSecondary}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          style={[
+            styles.input,
+            styles.noteInput,
+            { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text },
+          ]}
+        />
+
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={[styles.generateBtn, { backgroundColor: colors.buttonSecondary }]}
@@ -638,6 +651,13 @@ const DashboardScreen = () => {
               <Text style={[styles.value, { color: colors.text }]}>
                 {isVisible ? item.password : '••••••••••••'}
               </Text>
+
+              {item.notes ? (
+                <>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>Note</Text>
+                  <Text style={[styles.value, { color: colors.text }]}>{item.notes}</Text>
+                </>
+              ) : null}
 
               <View style={styles.actions}>
                 {!isConfirmingDelete ? (
@@ -837,6 +857,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderRadius: 10,
     fontSize: 16,
+  },
+  noteInput: {
+    minHeight: 64,
+    textAlignVertical: 'top',
   },
   passwordInputRow: {
     flexDirection: 'row',
