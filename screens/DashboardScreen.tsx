@@ -348,17 +348,8 @@ const DashboardScreen = () => {
 
   const isFormCopied = copiedId === 'form';
 
-  return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.background,
-          paddingTop: insets.top + 12,
-          paddingBottom: insets.bottom + 8,
-        },
-      ]}
-    >
+  const listHeader = (
+    <>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix Vault</Text>
         <View style={styles.headerRight}>
@@ -425,7 +416,13 @@ const DashboardScreen = () => {
         </View>
       )}
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsRow} contentContainerStyle={{ gap: 8 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipsRow}
+        contentContainerStyle={{ gap: 8 }}
+        nestedScrollEnabled
+      >
         <TouchableOpacity
           style={[
             styles.chip,
@@ -492,7 +489,13 @@ const DashboardScreen = () => {
           autoCapitalize="none"
         />
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginBottom: 12 }}
+          contentContainerStyle={{ gap: 8 }}
+          nestedScrollEnabled
+        >
           <TouchableOpacity
             style={[
               styles.chip,
@@ -604,11 +607,27 @@ const DashboardScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
+    </>
+  );
 
+  return (
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: insets.top + 12,
+          paddingBottom: insets.bottom + 8,
+        },
+      ]}
+    >
       <FlatList
+        style={styles.list}
         data={filteredVault}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={listHeader}
         renderItem={({ item }) => {
           const isVisible = visiblePasswords[item.id];
           const isCopied = copiedId === item.id;
@@ -795,6 +814,7 @@ const DashboardScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
+  list: { flex: 1 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
