@@ -33,6 +33,8 @@ type StrengthLevel = {
   feedback: string;
 };
 
+type ExportFormat = 'json' | 'csv';
+
 const calculateStrength = (password: string): StrengthLevel => {
   if (!password) return { score: 0, label: '', color: '#e0e0e0', feedback: '' };
 
@@ -108,6 +110,7 @@ const DashboardScreen = () => {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
 
   // Multi-select
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
@@ -160,6 +163,11 @@ const DashboardScreen = () => {
     setFormCategory(selectedCategory);
   }, [selectedCategory]);
 
+  const closeExportMenu = useCallback(() => {
+    setShowExportMenu(false);
+    setExportFormat(null);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
@@ -177,7 +185,11 @@ const DashboardScreen = () => {
           return true;
         }
         if (showExportMenu) {
-          setShowExportMenu(false);
+          if (exportFormat) {
+            setExportFormat(null);
+          } else {
+            closeExportMenu();
+          }
           return true;
         }
         if (selectedCount > 0) {
@@ -202,10 +214,12 @@ const DashboardScreen = () => {
       showImportCategoryModal,
       showThemePicker,
       showExportMenu,
+      exportFormat,
       selectedCount,
       confirmingDeleteId,
       editingId,
       clearForm,
+      closeExportMenu,
     ])
   );
 
@@ -238,7 +252,6 @@ const DashboardScreen = () => {
     }
 
     try {
-      // New entries use the top category filter; edits keep the entry's category
       const categoryForSave = isEditing ? formCategory : selectedCategory;
 
       const payload = {
@@ -359,8 +372,17 @@ const DashboardScreen = () => {
     }
   };
 
-  const runExport = async (format: 'json' | 'csv', scope: 'all' | 'category' | 'selected') => {
-    setShowExportMenu(false);
+  const toggleExportMenu = () => {
+    if (showExportMenu) {
+      closeExportMenu();
+    } else {
+      setExportFormat(null);
+      setShowExportMenu(true);
+    }
+  };
+
+  const runExport = async (format: ExportFormat, scope: 'all' | 'category' | 'selected') => {
+    closeExportMenu();
     try {
       let entries: PasswordEntry[] | undefined;
 
@@ -476,6 +498,7 @@ const DashboardScreen = () => {
   }
 
   const isFormCopied = copiedId === 'form';
+  const formatLabel = exportFormat === 'json' ? 'JSON' : exportFormat === 'csv' ? 'CSV' : '';
 
   const listHeader = (
     <>
@@ -524,7 +547,7 @@ const DashboardScreen = () => {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.ioBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => setShowExportMenu(!showExportMenu)}
+          onPress={toggleExportMenu}
         >
           <Text style={[styles.ioBtnText, { color: colors.text }]}>Export</Text>
         </TouchableOpacity>
@@ -532,50 +555,63 @@ const DashboardScreen = () => {
 
       {showExportMenu && (
         <View style={[styles.exportMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.exportSectionTitle, { color: colors.textSecondary }]}>Scope</Text>
+          {!exportFormat ? (
+            <>
+              <Text style={[styles.exportSectionTitle, { color: colors.textSecondary }]}>
+                Choose format
+              </Text>
+              <TouchableOpacity style={styles.exportOption} onPress={() => setExportFormat('json')}>
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>JSON</Text>
+                <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
+                  Full backup for Kryptix
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.exportOption} onPress={() => setExportFormat('csv')}>
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>CSV</Text>
+                <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
+                  Chrome / Firefox / Brave compatible
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <View style={styles.exportStepHeader}>
+                <TouchableOpacity onPress={() => setExportFormat(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={[styles.exportBack, { color: colors.tint }]}>← Format</Text>
+                </TouchableOpacity>
+                <Text style={[styles.exportSectionTitleInline, { color: colors.textSecondary }]}>
+                  Export as {formatLabel}
+                </Text>
+              </View>
 
-          <TouchableOpacity style={styles.exportOption} onPress={() => runExport('json', 'all')}>
-            <Text style={[styles.exportOptionText, { color: colors.text }]}>All passwords → JSON</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.exportOption} onPress={() => runExport('csv', 'all')}>
-            <Text style={[styles.exportOptionText, { color: colors.text }]}>All passwords → CSV</Text>
-          </TouchableOpacity>
+              <TouchableOpacity style={styles.exportOption} onPress={() => runExport(exportFormat, 'all')}>
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>All passwords</Text>
+                <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
+                  Entire vault ({vault.length})
+                </Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity style={styles.exportOption} onPress={() => runExport('json', 'category')}>
-            <Text style={[styles.exportOptionText, { color: colors.text }]}>
-              Current filter → JSON
-            </Text>
-            <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
-              {selectedCategory || 'All'} ({filteredVault.length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.exportOption} onPress={() => runExport('csv', 'category')}>
-            <Text style={[styles.exportOptionText, { color: colors.text }]}>
-              Current filter → CSV
-            </Text>
-          </TouchableOpacity>
+              <TouchableOpacity style={styles.exportOption} onPress={() => runExport(exportFormat, 'category')}>
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>Current category</Text>
+                <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
+                  {selectedCategory || 'All'} ({filteredVault.length})
+                </Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.exportOption, selectedCount === 0 && { opacity: 0.45 }]}
-            onPress={() => runExport('json', 'selected')}
-            disabled={selectedCount === 0}
-          >
-            <Text style={[styles.exportOptionText, { color: colors.text }]}>
-              Selected → JSON ({selectedCount})
-            </Text>
-            <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
-              Use checkboxes on each password
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.exportOption, selectedCount === 0 && { opacity: 0.45 }]}
-            onPress={() => runExport('csv', 'selected')}
-            disabled={selectedCount === 0}
-          >
-            <Text style={[styles.exportOptionText, { color: colors.text }]}>
-              Selected → CSV ({selectedCount})
-            </Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.exportOption, selectedCount === 0 && { opacity: 0.45 }]}
+                onPress={() => runExport(exportFormat, 'selected')}
+                disabled={selectedCount === 0}
+              >
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>Selected ones</Text>
+                <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
+                  {selectedCount > 0
+                    ? `${selectedCount} selected`
+                    : 'Select passwords with checkboxes first'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       )}
 
@@ -628,7 +664,6 @@ const DashboardScreen = () => {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Selection toolbar */}
       {filteredVault.length > 0 && (
         <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity onPress={toggleSelectAllFiltered} style={styles.selectBarLeft}>
@@ -1087,6 +1122,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 4,
+  },
+  exportStepHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  exportBack: { fontSize: 14, fontWeight: '600' },
+  exportSectionTitleInline: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   exportOption: { paddingVertical: 12, paddingHorizontal: 16 },
   exportOptionText: { fontSize: 15, fontWeight: '600' },
