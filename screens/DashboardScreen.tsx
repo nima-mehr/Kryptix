@@ -19,6 +19,7 @@ import {
   updatePassword,
   loadVault,
   deletePassword,
+  deletePasswords,
   PasswordEntry,
 } from '../utils/vault';
 import { exportAsJSON, exportAsCSV, pickAndParseImportFile, commitImport } from '../utils/importExport';
@@ -108,6 +109,9 @@ const DashboardScreen = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // Multi-select
+  const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
+
   const [importEntries, setImportEntries] = useState<PasswordEntry[] | null>(null);
   const [showImportCategoryModal, setShowImportCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -121,6 +125,19 @@ const DashboardScreen = () => {
     if (!selectedCategory) return vault;
     return vault.filter((e) => e.category === selectedCategory);
   }, [vault, selectedCategory]);
+
+  const selectedCount = useMemo(
+    () => Object.values(selectedIds).filter(Boolean).length,
+    [selectedIds]
+  );
+
+  const selectedEntries = useMemo(
+    () => vault.filter((e) => selectedIds[e.id]),
+    [vault, selectedIds]
+  );
+
+  const allFilteredSelected =
+    filteredVault.length > 0 && filteredVault.every((e) => selectedIds[e.id]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -163,6 +180,10 @@ const DashboardScreen = () => {
           setShowExportMenu(false);
           return true;
         }
+        if (selectedCount > 0) {
+          setSelectedIds({});
+          return true;
+        }
         if (confirmingDeleteId) {
           setConfirmingDeleteId(null);
           return true;
@@ -181,6 +202,7 @@ const DashboardScreen = () => {
       showImportCategoryModal,
       showThemePicker,
       showExportMenu,
+      selectedCount,
       confirmingDeleteId,
       editingId,
       clearForm,
@@ -232,7 +254,7 @@ const DashboardScreen = () => {
       }
       setVault(await loadVault());
       clearForm();
-    } catch (error) {
+    } catch {
       Alert.alert('Error', isEditing ? 'Failed to update password' : 'Failed to save password');
     }
   };
@@ -241,7 +263,63 @@ const DashboardScreen = () => {
     await deletePassword(id);
     setVault(await loadVault());
     setConfirmingDeleteId(null);
+    setSelectedIds((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     if (editingId === id) clearForm();
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
+  const toggleSelectAllFiltered = () => {
+    if (allFilteredSelected) {
+      setSelectedIds((prev) => {
+        const next = { ...prev };
+        filteredVault.forEach((e) => {
+          delete next[e.id];
+        });
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = { ...prev };
+        filteredVault.forEach((e) => {
+          next[e.id] = true;
+        });
+        return next;
+      });
+    }
+  };
+
+  const clearSelection = () => setSelectedIds({});
+
+  const handleBulkDelete = () => {
+    if (selectedCount === 0) return;
+    Alert.alert(
+      'Delete selected',
+      `Delete ${selectedCount} password${selectedCount === 1 ? '' : 's'}? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const ids = Object.keys(selectedIds).filter((id) => selectedIds[id]);
+            await deletePasswords(ids);
+            setVault(await loadVault());
+            setSelectedIds({});
+            if (editingId && ids.includes(editingId)) clearForm();
+          },
+        },
+      ]
+    );
   };
 
   const togglePasswordVisibility = (id: string) => {
@@ -277,19 +355,32 @@ const DashboardScreen = () => {
     }
   };
 
-  const handleExportJSON = async () => {
+  const runExport = async (format: 'json' | 'csv', scope: 'all' | 'category' | 'selected') => {
     setShowExportMenu(false);
     try {
-      await exportAsJSON();
-    } catch (e: any) {
-      Alert.alert('Export failed', e?.message || 'Could not export vault');
-    }
-  };
+      let entries: PasswordEntry[] | undefined;
 
-  const handleExportCSV = async () => {
-    setShowExportMenu(false);
-    try {
-      await exportAsCSV();
+      if (scope === 'all') {
+        entries = undefined; // full vault inside export helpers
+      } else if (scope === 'category') {
+        entries = filteredVault;
+        if (entries.length === 0) {
+          Alert.alert('Nothing to export', 'No passwords in the current filter.');
+          return;
+        }
+      } else {
+        entries = selectedEntries;
+        if (entries.length === 0) {
+          Alert.alert('Nothing to export', 'Select passwords with the checkboxes first.');
+          return;
+        }
+      }
+
+      if (format === 'json') {
+        await exportAsJSON(entries);
+      } else {
+        await exportAsCSV(entries);
+      }
     } catch (e: any) {
       Alert.alert('Export failed', e?.message || 'Could not export vault');
     }
@@ -437,14 +528,48 @@ const DashboardScreen = () => {
 
       {showExportMenu && (
         <View style={[styles.exportMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TouchableOpacity style={styles.exportOption} onPress={handleExportJSON}>
-            <Text style={[styles.exportOptionText, { color: colors.text }]}>Export as JSON</Text>
-            <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>Full backup</Text>
+          <Text style={[styles.exportSectionTitle, { color: colors.textSecondary }]}>Scope</Text>
+
+          <TouchableOpacity style={styles.exportOption} onPress={() => runExport('json', 'all')}>
+            <Text style={[styles.exportOptionText, { color: colors.text }]}>All passwords → JSON</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.exportOption} onPress={handleExportCSV}>
-            <Text style={[styles.exportOptionText, { color: colors.text }]}>Export as CSV</Text>
+          <TouchableOpacity style={styles.exportOption} onPress={() => runExport('csv', 'all')}>
+            <Text style={[styles.exportOptionText, { color: colors.text }]}>All passwords → CSV</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.exportOption} onPress={() => runExport('json', 'category')}>
+            <Text style={[styles.exportOptionText, { color: colors.text }]}>
+              Current filter → JSON
+            </Text>
             <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
-              Chrome / Firefox / Brave compatible
+              {selectedCategory || 'All'} ({filteredVault.length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.exportOption} onPress={() => runExport('csv', 'category')}>
+            <Text style={[styles.exportOptionText, { color: colors.text }]}>
+              Current filter → CSV
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.exportOption, selectedCount === 0 && { opacity: 0.45 }]}
+            onPress={() => runExport('json', 'selected')}
+            disabled={selectedCount === 0}
+          >
+            <Text style={[styles.exportOptionText, { color: colors.text }]}>
+              Selected → JSON ({selectedCount})
+            </Text>
+            <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
+              Use checkboxes on each password
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.exportOption, selectedCount === 0 && { opacity: 0.45 }]}
+            onPress={() => runExport('csv', 'selected')}
+            disabled={selectedCount === 0}
+          >
+            <Text style={[styles.exportOptionText, { color: colors.text }]}>
+              Selected → CSV ({selectedCount})
             </Text>
           </TouchableOpacity>
         </View>
@@ -498,6 +623,39 @@ const DashboardScreen = () => {
           <Text style={[styles.chipText, { color: colors.tint }]}>+ Add</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Selection toolbar */}
+      {filteredVault.length > 0 && (
+        <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity onPress={toggleSelectAllFiltered} style={styles.selectBarLeft}>
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  borderColor: colors.tint,
+                  backgroundColor: allFilteredSelected ? colors.tint : 'transparent',
+                },
+              ]}
+            >
+              {allFilteredSelected ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+            <Text style={[styles.selectBarText, { color: colors.text }]}>
+              {selectedCount > 0 ? `${selectedCount} selected` : 'Select'}
+            </Text>
+          </TouchableOpacity>
+
+          {selectedCount > 0 && (
+            <View style={styles.selectBarActions}>
+              <TouchableOpacity onPress={clearSelection}>
+                <Text style={[styles.selectBarAction, { color: colors.textSecondary }]}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleBulkDelete}>
+                <Text style={[styles.selectBarAction, { color: colors.danger }]}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      )}
 
       <View style={[styles.form, { backgroundColor: colors.card }]}>
         {isEditing && (
@@ -571,11 +729,7 @@ const DashboardScreen = () => {
           <TouchableOpacity
             style={[
               styles.chip,
-              {
-                backgroundColor: colors.inputBackground,
-                borderColor: colors.tint,
-                borderStyle: 'dashed',
-              },
+              { backgroundColor: colors.inputBackground, borderColor: colors.tint, borderStyle: 'dashed' },
             ]}
             onPress={openCreateCategory}
           >
@@ -691,6 +845,7 @@ const DashboardScreen = () => {
           const isCopied = copiedId === item.id;
           const isConfirmingDelete = confirmingDeleteId === item.id;
           const isBeingEdited = editingId === item.id;
+          const isSelected = !!selectedIds[item.id];
 
           return (
             <View
@@ -698,12 +853,34 @@ const DashboardScreen = () => {
                 styles.entry,
                 {
                   backgroundColor: colors.card,
-                  borderWidth: isBeingEdited ? 1.5 : 0,
-                  borderColor: isBeingEdited ? colors.tint : 'transparent',
+                  borderWidth: isBeingEdited || isSelected ? 1.5 : 0,
+                  borderColor: isBeingEdited
+                    ? colors.tint
+                    : isSelected
+                      ? colors.tint + '99'
+                      : 'transparent',
                 },
               ]}
             >
               <View style={styles.entryHeader}>
+                <TouchableOpacity
+                  onPress={() => toggleSelect(item.id)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={{ marginRight: 10 }}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      {
+                        borderColor: colors.tint,
+                        backgroundColor: isSelected ? colors.tint : 'transparent',
+                      },
+                    ]}
+                  >
+                    {isSelected ? <Text style={styles.checkmark}>✓</Text> : null}
+                  </View>
+                </TouchableOpacity>
+
                 <Text style={[styles.site, { color: colors.text, flex: 1 }]}>{item.site}</Text>
                 {item.category ? (
                   <View style={[styles.catBadge, { backgroundColor: colors.tint + '22' }]}>
@@ -800,7 +977,6 @@ const DashboardScreen = () => {
         }
       />
 
-      {/* Create category modal */}
       <Modal visible={showCreateCategoryModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
@@ -944,7 +1120,16 @@ const styles = StyleSheet.create({
   },
   ioBtnText: { fontWeight: '600', fontSize: 14 },
   exportMenu: { borderRadius: 12, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
-  exportOption: { paddingVertical: 14, paddingHorizontal: 16 },
+  exportSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  exportOption: { paddingVertical: 12, paddingHorizontal: 16 },
   exportOptionText: { fontSize: 15, fontWeight: '600' },
   exportOptionHint: { fontSize: 12, marginTop: 2 },
   chipsRow: { marginBottom: 12, maxHeight: 40 },
@@ -955,6 +1140,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   chipText: { fontSize: 14, fontWeight: '600' },
+  selectBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  selectBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  selectBarText: { fontSize: 14, fontWeight: '600' },
+  selectBarActions: { flexDirection: 'row', gap: 16 },
+  selectBarAction: { fontSize: 14, fontWeight: '700' },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkmark: { color: '#fff', fontSize: 13, fontWeight: '800' },
   form: { padding: 16, borderRadius: 12, marginBottom: 20 },
   editingBanner: {
     flexDirection: 'row',
@@ -1016,7 +1224,7 @@ const styles = StyleSheet.create({
   },
   addBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   entry: { padding: 16, borderRadius: 12, marginBottom: 12 },
-  entryHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 8 },
+  entryHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 4 },
   site: { fontSize: 18, fontWeight: 'bold' },
   catBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   catBadgeText: { fontSize: 11, fontWeight: '600' },
