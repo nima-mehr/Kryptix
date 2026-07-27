@@ -3,7 +3,6 @@ import type { PasswordEntry, PasswordVault } from '../types/vault';
 
 const VAULT_KEY = 'kryptix_vault';
 
-// Reliable ID generator that works everywhere (no crypto.getRandomValues needed)
 const generateId = (): string => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 11);
 };
@@ -67,5 +66,11 @@ export const deletePassword = async (id: string): Promise<void> => {
   await saveVault(filtered);
 };
 
-// Re-export types for easy importing
+export const deletePasswords = async (ids: string[]): Promise<void> => {
+  if (ids.length === 0) return;
+  const idSet = new Set(ids);
+  const vault = await loadVault();
+  await saveVault(vault.filter((e) => !idSet.has(e.id)));
+};
+
 export type { PasswordEntry, PasswordVault };
