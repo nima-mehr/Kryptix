@@ -1,7 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { loadVault, saveVault, PasswordEntry, PasswordVault } from './vault';
+import { loadVault, saveVault, PasswordEntry } from './vault';
 
 // ====================== EXPORT ======================
 
@@ -28,7 +28,6 @@ export const exportAsJSON = async (): Promise<void> => {
 export const exportAsCSV = async (): Promise<void> => {
   const vault = await loadVault();
 
-  // Chrome/Firefox compatible format
   const header = 'name,url,username,password';
   const rows = vault.map((entry) => {
     const name = escapeCSV(entry.site);
@@ -69,16 +68,21 @@ export type ImportResult = {
   imported: number;
   skipped: number;
   total: number;
+  cancelled?: boolean;
 };
 
-export const importFromFile = async (): Promise<ImportResult> => {
+/**
+ * Pick a file and parse it, but do NOT save yet.
+ * Returns the parsed entries so the UI can ask for a category first.
+ */
+export const pickAndParseImportFile = async (): Promise<PasswordEntry[] | null> => {
   const result = await DocumentPicker.getDocumentAsync({
     type: ['text/csv', 'text/comma-separated-values', 'application/json', 'text/plain', '*/*'],
     copyToCacheDirectory: true,
   });
 
   if (result.canceled || !result.assets?.[0]) {
-    return { imported: 0, skipped: 0, total: 0 };
+    return null;
   }
 
   const file = result.assets[0];
@@ -87,7 +91,6 @@ export const importFromFile = async (): Promise<ImportResult> => {
   });
 
   const name = (file.name || '').toLowerCase();
-
   let entries: PasswordEntry[] = [];
 
   if (name.endsWith('.json') || content.trim().startsWith('[')) {
@@ -100,6 +103,16 @@ export const importFromFile = async (): Promise<ImportResult> => {
     throw new Error('No valid passwords found in the file');
   }
 
+  return entries;
+};
+
+/**
+ * Save previously parsed entries into the vault, optionally into a category.
+ */
+export const commitImport = async (
+  entries: PasswordEntry[],
+  category?: string | null
+): Promise<ImportResult> => {
   const existingVault = await loadVault();
   const existingKeys = new Set(
     existingVault.map((e) => `${e.site.toLowerCase()}|${e.username.toLowerCase()}`)
@@ -107,6 +120,7 @@ export const importFromFile = async (): Promise<ImportResult> => {
 
   let imported = 0;
   let skipped = 0;
+  const cat = category?.trim() || undefined;
 
   for (const entry of entries) {
     const key = `${entry.site.toLowerCase()}|${entry.username.toLowerCase()}`;
@@ -114,7 +128,11 @@ export const importFromFile = async (): Promise<ImportResult> => {
       skipped++;
       continue;
     }
-    existingVault.push(entry);
+
+    existingVault.push({
+      ...entry,
+      category: cat,
+    });
     existingKeys.add(key);
     imported++;
   }
@@ -163,7 +181,6 @@ const parseCSV = (content: string): PasswordEntry[] => {
   const headerLine = lines[0].toLowerCase();
   const headers = parseCSVLine(headerLine);
 
-  // Detect column indexes (Chrome, Firefox, Edge, Safari variations)
   const findCol = (...names: string[]) => {
     for (const name of names) {
       const idx = headers.findIndex((h) => h.includes(name));
@@ -212,7 +229,6 @@ const parseCSV = (content: string): PasswordEntry[] => {
   return entries;
 };
 
-/** Simple CSV line parser that handles quoted fields */
 const parseCSVLine = (line: string): string[] => {
   const result: string[] = [];
   let current = '';
