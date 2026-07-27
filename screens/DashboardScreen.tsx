@@ -122,7 +122,7 @@ const DashboardScreen = () => {
     setEditingId(null);
   }, []);
 
-  // Back gesture / hardware back: cancel in-app actions instead of leaving the app
+  // Back: cancel in-app actions first; otherwise let the system exit the app
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
@@ -138,8 +138,8 @@ const DashboardScreen = () => {
           clearForm();
           return true;
         }
-        // Block default back so the app does not exit while on the vault
-        return true;
+        // No active action → allow default behavior (quit app)
+        return false;
       };
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
