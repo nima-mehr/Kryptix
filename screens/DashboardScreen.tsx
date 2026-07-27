@@ -9,6 +9,8 @@ import {
   Alert,
   Clipboard,
   BackHandler,
+  ScrollView,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -19,10 +21,10 @@ import {
   deletePassword,
   PasswordEntry,
 } from '../utils/vault';
-import { exportAsJSON, exportAsCSV, importFromFile } from '../utils/importExport';
+import { exportAsJSON, exportAsCSV, pickAndParseImportFile, commitImport } from '../utils/importExport';
+import { loadCategories, addCategory, deleteCategory } from '../utils/categories';
 import { useTheme, ThemeMode } from '../context/ThemeContext';
 
-// ====================== PASSWORD STRENGTH ======================
 type StrengthLevel = {
   score: number;
   label: string;
@@ -31,9 +33,7 @@ type StrengthLevel = {
 };
 
 const calculateStrength = (password: string): StrengthLevel => {
-  if (!password) {
-    return { score: 0, label: '', color: '#e0e0e0', feedback: '' };
-  }
+  if (!password) return { score: 0, label: '', color: '#e0e0e0', feedback: '' };
 
   let score = 0;
   const feedbacks: string[] = [];
@@ -46,7 +46,6 @@ const calculateStrength = (password: string): StrengthLevel => {
   const hasUpper = /[A-Z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
   const hasSymbol = /[^a-zA-Z0-9]/.test(password);
-
   const varietyCount = [hasLower, hasUpper, hasNumber, hasSymbol].filter(Boolean).length;
   if (varietyCount >= 3) score += 1;
   if (varietyCount === 4) score += 1;
@@ -85,13 +84,16 @@ const calculateStrength = (password: string): StrengthLevel => {
   };
 };
 
-// ====================== COMPONENT ======================
 const DashboardScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, mode, setMode } = useTheme();
 
   const [vault, setVault] = useState<PasswordEntry[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null); // null = All
+  const [formCategory, setFormCategory] = useState<string | null>(null);
+
   const [site, setSite] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -104,13 +106,25 @@ const DashboardScreen = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // Import category picker modal
+  const [importEntries, setImportEntries] = useState<PasswordEntry[] | null>(null);
+  const [showImportCategoryModal, setShowImportCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
+
   const strength = useMemo(() => calculateStrength(password), [password]);
   const isEditing = editingId !== null;
 
+  const filteredVault = useMemo(() => {
+    if (!selectedCategory) return vault;
+    return vault.filter((e) => e.category === selectedCategory);
+  }, [vault, selectedCategory]);
+
   useEffect(() => {
     const loadData = async () => {
-      const data = await loadVault();
+      const [data, cats] = await Promise.all([loadVault(), loadCategories()]);
       setVault(data);
+      setCategories(cats);
       setLoading(false);
     };
     loadData();
@@ -122,11 +136,17 @@ const DashboardScreen = () => {
     setPassword('');
     setShowFormPassword(false);
     setEditingId(null);
-  }, []);
+    setFormCategory(selectedCategory);
+  }, [selectedCategory]);
 
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
+        if (showImportCategoryModal) {
+          setShowImportCategoryModal(false);
+          setImportEntries(null);
+          return true;
+        }
         if (showThemePicker) {
           setShowThemePicker(false);
           return true;
@@ -148,7 +168,7 @@ const DashboardScreen = () => {
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
-    }, [showThemePicker, showExportMenu, confirmingDeleteId, editingId, clearForm])
+    }, [showImportCategoryModal, showThemePicker, showExportMenu, confirmingDeleteId, editingId, clearForm])
   );
 
   const generatePassword = (length = 16) => {
@@ -166,6 +186,7 @@ const DashboardScreen = () => {
     setSite(entry.site);
     setUsername(entry.username);
     setPassword(entry.password);
+    setFormCategory(entry.category || null);
     setShowFormPassword(false);
     setConfirmingDeleteId(null);
   };
@@ -178,9 +199,19 @@ const DashboardScreen = () => {
 
     try {
       if (isEditing && editingId) {
-        await updatePassword(editingId, { site, username, password });
+        await updatePassword(editingId, {
+          site,
+          username,
+          password,
+          category: formCategory || undefined,
+        });
       } else {
-        await addPassword({ site, username, password });
+        await addPassword({
+          site,
+          username,
+          password,
+          category: formCategory || undefined,
+        });
       }
       setVault(await loadVault());
       clearForm();
@@ -193,16 +224,11 @@ const DashboardScreen = () => {
     await deletePassword(id);
     setVault(await loadVault());
     setConfirmingDeleteId(null);
-    if (editingId === id) {
-      clearForm();
-    }
+    if (editingId === id) clearForm();
   };
 
   const togglePasswordVisibility = (id: string) => {
-    setVisiblePasswords((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+    setVisiblePasswords((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const copyToClipboard = (text: string, id: string = 'form') => {
@@ -232,18 +258,87 @@ const DashboardScreen = () => {
 
   const handleImport = async () => {
     try {
-      const result = await importFromFile();
-      if (result.total === 0) return; // user cancelled
+      const entries = await pickAndParseImportFile();
+      if (!entries) return; // cancelled
 
-      setVault(await loadVault());
-
-      Alert.alert(
-        'Import complete',
-        `Imported: ${result.imported}\nSkipped (duplicates): ${result.skipped}\nTotal in file: ${result.total}`
-      );
+      setImportEntries(entries);
+      setShowImportCategoryModal(true);
+      setShowNewCategoryInput(false);
+      setNewCategoryName('');
     } catch (e: any) {
       Alert.alert('Import failed', e?.message || 'Could not import file');
     }
+  };
+
+  const finishImport = async (category: string | null) => {
+    if (!importEntries) return;
+
+    try {
+      // If new category name was typed, create it first
+      let cat = category;
+      if (showNewCategoryInput && newCategoryName.trim()) {
+        const updated = await addCategory(newCategoryName.trim());
+        setCategories(updated);
+        cat = newCategoryName.trim();
+      }
+
+      const result = await commitImport(importEntries, cat);
+      setVault(await loadVault());
+      setShowImportCategoryModal(false);
+      setImportEntries(null);
+
+      Alert.alert(
+        'Import complete',
+        `Imported: ${result.imported}\nSkipped (duplicates): ${result.skipped}\nTotal in file: ${result.total}` +
+          (cat ? `\nCategory: ${cat}` : '\nCategory: Main list')
+      );
+    } catch (e: any) {
+      Alert.alert('Import failed', e?.message || 'Could not save imported passwords');
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    try {
+      const updated = await addCategory(name);
+      setCategories(updated);
+      setNewCategoryName('');
+      setShowNewCategoryInput(false);
+      setFormCategory(name);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not create category');
+    }
+  };
+
+  const handleDeleteCategory = (name: string) => {
+    Alert.alert(
+      'Delete category',
+      `Delete "${name}"? Passwords in it will move to the main list.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            // Move entries out of this category
+            const data = await loadVault();
+            const updated = data.map((e) =>
+              e.category === name ? { ...e, category: undefined } : e
+            );
+            // Save via sequential updates is heavy; use saveVault path through vault util
+            // We'll reload after deleting category metadata
+            const { saveVault } = await import('../utils/vault');
+            await saveVault(updated);
+            const cats = await deleteCategory(name);
+            setCategories(cats);
+            setVault(updated);
+            if (selectedCategory === name) setSelectedCategory(null);
+            if (formCategory === name) setFormCategory(null);
+          },
+        },
+      ]
+    );
   };
 
   const handleLogout = () => {
@@ -280,7 +375,6 @@ const DashboardScreen = () => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix Vault</Text>
-
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={[styles.themeBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -290,23 +384,18 @@ const DashboardScreen = () => {
               {mode === 'light' ? '☀️' : mode === 'dark' ? '🌙' : '⚙️'}
             </Text>
           </TouchableOpacity>
-
           <TouchableOpacity onPress={handleLogout}>
             <Text style={[styles.logoutText, { color: colors.tint }]}>Logout</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Theme Picker */}
       {showThemePicker && (
         <View style={[styles.themePicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {themeOptions.map((opt) => (
             <TouchableOpacity
               key={opt.key}
-              style={[
-                styles.themeOption,
-                mode === opt.key && { backgroundColor: colors.tint + '22' },
-              ]}
+              style={[styles.themeOption, mode === opt.key && { backgroundColor: colors.tint + '22' }]}
               onPress={() => {
                 setMode(opt.key);
                 setShowThemePicker(false);
@@ -320,7 +409,7 @@ const DashboardScreen = () => {
         </View>
       )}
 
-      {/* Import / Export bar */}
+      {/* Import / Export */}
       <View style={styles.ioBar}>
         <TouchableOpacity
           style={[styles.ioBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -328,7 +417,6 @@ const DashboardScreen = () => {
         >
           <Text style={[styles.ioBtnText, { color: colors.text }]}>Import</Text>
         </TouchableOpacity>
-
         <TouchableOpacity
           style={[styles.ioBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
           onPress={() => setShowExportMenu(!showExportMenu)}
@@ -341,18 +429,93 @@ const DashboardScreen = () => {
         <View style={[styles.exportMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity style={styles.exportOption} onPress={handleExportJSON}>
             <Text style={[styles.exportOptionText, { color: colors.text }]}>Export as JSON</Text>
-            <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
-              Full backup (recommended)
-            </Text>
+            <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>Full backup</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.exportOption} onPress={handleExportCSV}>
             <Text style={[styles.exportOptionText, { color: colors.text }]}>Export as CSV</Text>
             <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
-              Compatible with Chrome / Firefox
+              Chrome / Firefox / Brave compatible
             </Text>
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Category filter chips */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsRow} contentContainerStyle={{ gap: 8 }}>
+        <TouchableOpacity
+          style={[
+            styles.chip,
+            {
+              backgroundColor: selectedCategory === null ? colors.tint : colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+          onPress={() => setSelectedCategory(null)}
+        >
+          <Text
+            style={[
+              styles.chipText,
+              { color: selectedCategory === null ? '#fff' : colors.text },
+            ]}
+          >
+            All
+          </Text>
+        </TouchableOpacity>
+
+        {categories.map((cat) => (
+          <TouchableOpacity
+            key={cat}
+            style={[
+              styles.chip,
+              {
+                backgroundColor: selectedCategory === cat ? colors.tint : colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={() => setSelectedCategory(cat)}
+            onLongPress={() => handleDeleteCategory(cat)}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                { color: selectedCategory === cat ? '#fff' : colors.text },
+              ]}
+            >
+              {cat}
+            </Text>
+          </TouchableOpacity>
+        ))}
+
+        <TouchableOpacity
+          style={[styles.chip, { backgroundColor: colors.card, borderColor: colors.border, borderStyle: 'dashed' }]}
+          onPress={() => {
+            setShowNewCategoryInput(true);
+            setNewCategoryName('');
+            Alert.prompt
+              ? Alert.prompt('New category', 'Enter category name', async (text) => {
+                  if (!text?.trim()) return;
+                  try {
+                    const updated = await addCategory(text.trim());
+                    setCategories(updated);
+                  } catch (e: any) {
+                    Alert.alert('Error', e?.message || 'Could not create category');
+                  }
+                })
+              : null;
+
+            // Fallback for Android (no Alert.prompt)
+            if (!Alert.prompt) {
+              setShowImportCategoryModal(false);
+              Alert.alert(
+                'New category',
+                'Type the name in the form Category field and long-press is not needed — use the + chip flow below in form.'
+              );
+            }
+          }}
+        >
+          <Text style={[styles.chipText, { color: colors.tint }]}>+ New</Text>
+        </TouchableOpacity>
+      </ScrollView>
 
       {/* Add / Edit Form */}
       <View style={[styles.form, { backgroundColor: colors.card }]}>
@@ -381,6 +544,37 @@ const DashboardScreen = () => {
           autoCapitalize="none"
         />
 
+        {/* Category selector for form */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
+          <TouchableOpacity
+            style={[
+              styles.chip,
+              {
+                backgroundColor: formCategory === null ? colors.tint + '33' : colors.inputBackground,
+                borderColor: formCategory === null ? colors.tint : colors.border,
+              },
+            ]}
+            onPress={() => setFormCategory(null)}
+          >
+            <Text style={[styles.chipText, { color: colors.text, fontSize: 13 }]}>No category</Text>
+          </TouchableOpacity>
+          {categories.map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              style={[
+                styles.chip,
+                {
+                  backgroundColor: formCategory === cat ? colors.tint + '33' : colors.inputBackground,
+                  borderColor: formCategory === cat ? colors.tint : colors.border,
+                },
+              ]}
+              onPress={() => setFormCategory(cat)}
+            >
+              <Text style={[styles.chipText, { color: colors.text, fontSize: 13 }]}>{cat}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
         <View style={styles.passwordInputRow}>
           <TextInput
             placeholder="Password"
@@ -395,12 +589,8 @@ const DashboardScreen = () => {
             ]}
           />
           <TouchableOpacity
-            style={[
-              styles.copyInputBtn,
-              { backgroundColor: colors.tint + '18' },
-              !password && { opacity: 0.4 },
-            ]}
-            onPress={() => setShowFormPassword((prev) => !prev)}
+            style={[styles.copyInputBtn, { backgroundColor: colors.tint + '18' }, !password && { opacity: 0.4 }]}
+            onPress={() => setShowFormPassword((p) => !p)}
             disabled={!password}
           >
             <Text style={[styles.copyInputBtnText, { color: colors.tint }]}>
@@ -416,12 +606,7 @@ const DashboardScreen = () => {
             onPress={() => copyToClipboard(password, 'form')}
             disabled={!password}
           >
-            <Text
-              style={[
-                styles.copyInputBtnText,
-                { color: isFormCopied ? colors.success : colors.tint },
-              ]}
-            >
+            <Text style={[styles.copyInputBtnText, { color: isFormCopied ? colors.success : colors.tint }]}>
               {isFormCopied ? 'Copied!' : 'Copy'}
             </Text>
           </TouchableOpacity>
@@ -435,20 +620,14 @@ const DashboardScreen = () => {
                   key={i}
                   style={[
                     styles.strengthBar,
-                    {
-                      backgroundColor: i <= strength.score ? strength.color : colors.border,
-                    },
+                    { backgroundColor: i <= strength.score ? strength.color : colors.border },
                   ]}
                 />
               ))}
             </View>
             <View style={styles.strengthTextRow}>
-              <Text style={[styles.strengthLabel, { color: strength.color }]}>
-                {strength.label}
-              </Text>
-              <Text style={[styles.strengthFeedback, { color: colors.textSecondary }]}>
-                {strength.feedback}
-              </Text>
+              <Text style={[styles.strengthLabel, { color: strength.color }]}>{strength.label}</Text>
+              <Text style={[styles.strengthFeedback, { color: colors.textSecondary }]}>{strength.feedback}</Text>
             </View>
           </View>
         )}
@@ -460,19 +639,15 @@ const DashboardScreen = () => {
           >
             <Text style={styles.generateBtnText}>Generate</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: colors.tint }]}
-            onPress={handleSave}
-          >
+          <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.tint }]} onPress={handleSave}>
             <Text style={styles.addBtnText}>{isEditing ? 'Update' : 'Add Password'}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Password List */}
+      {/* List */}
       <FlatList
-        data={vault}
+        data={filteredVault}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
@@ -492,16 +667,20 @@ const DashboardScreen = () => {
                 },
               ]}
             >
-              <Text style={[styles.site, { color: colors.text }]}>{item.site}</Text>
+              <View style={styles.entryHeader}>
+                <Text style={[styles.site, { color: colors.text, flex: 1 }]}>{item.site}</Text>
+                {item.category ? (
+                  <View style={[styles.catBadge, { backgroundColor: colors.tint + '22' }]}>
+                    <Text style={[styles.catBadgeText, { color: colors.tint }]}>{item.category}</Text>
+                  </View>
+                ) : null}
+              </View>
               <Text style={[styles.label, { color: colors.textSecondary }]}>Username</Text>
               <Text style={[styles.value, { color: colors.text }]}>{item.username}</Text>
-
               <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
-              <View style={styles.passwordRow}>
-                <Text style={[styles.value, { color: colors.text }]}>
-                  {isVisible ? item.password : '••••••••••••'}
-                </Text>
-              </View>
+              <Text style={[styles.value, { color: colors.text }]}>
+                {isVisible ? item.password : '••••••••••••'}
+              </Text>
 
               <View style={styles.actions}>
                 {!isConfirmingDelete ? (
@@ -514,7 +693,6 @@ const DashboardScreen = () => {
                         {isVisible ? 'Hide' : 'Show'}
                       </Text>
                     </TouchableOpacity>
-
                     <TouchableOpacity
                       style={[
                         styles.actionBtn,
@@ -522,23 +700,16 @@ const DashboardScreen = () => {
                       ]}
                       onPress={() => copyToClipboard(item.password, item.id)}
                     >
-                      <Text
-                        style={[
-                          styles.actionText,
-                          { color: isCopied ? colors.success : colors.text },
-                        ]}
-                      >
+                      <Text style={[styles.actionText, { color: isCopied ? colors.success : colors.text }]}>
                         {isCopied ? 'Copied!' : 'Copy'}
                       </Text>
                     </TouchableOpacity>
-
                     <TouchableOpacity
                       style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
                       onPress={() => startEdit(item)}
                     >
                       <Text style={[styles.actionText, { color: colors.tint }]}>Edit</Text>
                     </TouchableOpacity>
-
                     <TouchableOpacity
                       style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
                       onPress={() => setConfirmingDeleteId(item.id)}
@@ -554,7 +725,6 @@ const DashboardScreen = () => {
                     >
                       <Text style={[styles.actionText, { color: colors.text }]}>Cancel</Text>
                     </TouchableOpacity>
-
                     <TouchableOpacity
                       style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
                       onPress={() => confirmDelete(item.id)}
@@ -569,34 +739,94 @@ const DashboardScreen = () => {
         }}
         ListEmptyComponent={
           <Text style={[styles.empty, { color: colors.textSecondary }]}>
-            No passwords saved yet.\nAdd your first one above!
+            {selectedCategory
+              ? `No passwords in "${selectedCategory}" yet.`
+              : 'No passwords saved yet.\nAdd your first one above!'}
           </Text>
         }
       />
+
+      {/* Import category modal */}
+      <Modal visible={showImportCategoryModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Import passwords</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              {importEntries?.length || 0} passwords found. Where should they go?
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.modalOption, { borderColor: colors.border }]}
+              onPress={() => finishImport(null)}
+            >
+              <Text style={[styles.modalOptionText, { color: colors.text }]}>Main list (no category)</Text>
+            </TouchableOpacity>
+
+            {categories.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.modalOption, { borderColor: colors.border }]}
+                onPress={() => finishImport(cat)}
+              >
+                <Text style={[styles.modalOptionText, { color: colors.text }]}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
+
+            {!showNewCategoryInput ? (
+              <TouchableOpacity
+                style={[styles.modalOption, { borderColor: colors.tint, borderStyle: 'dashed' }]}
+                onPress={() => setShowNewCategoryInput(true)}
+              >
+                <Text style={[styles.modalOptionText, { color: colors.tint }]}>+ Create new category</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ marginTop: 8 }}>
+                <TextInput
+                  placeholder="Category name (e.g. Brave)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={newCategoryName}
+                  onChangeText={setNewCategoryName}
+                  style={[
+                    styles.input,
+                    { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text },
+                  ]}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[styles.addBtn, { backgroundColor: colors.tint, marginTop: 4 }]}
+                  onPress={() => finishImport(newCategoryName.trim() || null)}
+                >
+                  <Text style={styles.addBtnText}>Import into new category</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={{ marginTop: 16, alignItems: 'center' }}
+              onPress={() => {
+                setShowImportCategoryModal(false);
+                setImportEntries(null);
+              }}
+            >
+              <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
+  container: { flex: 1, paddingHorizontal: 20 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
+  title: { fontSize: 22, fontWeight: 'bold' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   themeBtn: {
     width: 36,
     height: 36,
@@ -605,16 +835,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoutText: {
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  themePicker: {
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
+  logoutText: { fontWeight: '600', fontSize: 15 },
+  themePicker: { borderRadius: 12, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
   themeOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -622,16 +844,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 12,
   },
-  themeOptionText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  ioBar: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 12,
-  },
+  themeOptionText: { flex: 1, fontSize: 15, fontWeight: '500' },
+  ioBar: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   ioBtn: {
     flex: 1,
     paddingVertical: 10,
@@ -639,47 +853,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
   },
-  ioBtnText: {
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  exportMenu: {
-    borderRadius: 12,
+  ioBtnText: { fontWeight: '600', fontSize: 14 },
+  exportMenu: { borderRadius: 12, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
+  exportOption: { paddingVertical: 14, paddingHorizontal: 16 },
+  exportOptionText: { fontSize: 15, fontWeight: '600' },
+  exportOptionHint: { fontSize: 12, marginTop: 2 },
+  chipsRow: { marginBottom: 12, maxHeight: 40 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
     borderWidth: 1,
-    marginBottom: 12,
-    overflow: 'hidden',
   },
-  exportOption: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  exportOptionText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  exportOptionHint: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  form: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
+  chipText: { fontSize: 14, fontWeight: '600' },
+  form: { padding: 16, borderRadius: 12, marginBottom: 20 },
   editingBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  editingText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  cancelEditText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
+  editingText: { fontSize: 14, fontWeight: '600' },
+  cancelEditText: { fontSize: 14, fontWeight: '500' },
   input: {
     borderWidth: 1,
     padding: 14,
@@ -693,10 +888,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 12,
   },
-  passwordInput: {
-    flex: 1,
-    marginBottom: 0,
-  },
+  passwordInput: { flex: 1, marginBottom: 0 },
   copyInputBtn: {
     paddingVertical: 14,
     paddingHorizontal: 14,
@@ -704,103 +896,60 @@ const styles = StyleSheet.create({
     minWidth: 64,
     alignItems: 'center',
   },
-  copyInputBtnText: {
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  strengthContainer: {
-    marginBottom: 14,
-  },
-  strengthBars: {
-    flexDirection: 'row',
-    gap: 4,
-    marginBottom: 6,
-  },
-  strengthBar: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-  },
+  copyInputBtnText: { fontWeight: '600', fontSize: 14 },
+  strengthContainer: { marginBottom: 14 },
+  strengthBars: { flexDirection: 'row', gap: 4, marginBottom: 6 },
+  strengthBar: { flex: 1, height: 6, borderRadius: 3 },
   strengthTextRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  strengthLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  strengthFeedback: {
-    fontSize: 12,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+  strengthLabel: { fontSize: 13, fontWeight: '700' },
+  strengthFeedback: { fontSize: 12 },
+  buttonRow: { flexDirection: 'row', gap: 10 },
   generateBtn: {
     flex: 1,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
   },
-  generateBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
-  },
+  generateBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   addBtn: {
     flex: 1.5,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
   },
-  addBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
+  addBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  entry: { padding: 16, borderRadius: 12, marginBottom: 12 },
+  entryHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 8 },
+  site: { fontSize: 18, fontWeight: 'bold' },
+  catBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  catBadgeText: { fontSize: 11, fontWeight: '600' },
+  label: { fontSize: 12, marginTop: 6, marginBottom: 2 },
+  value: { fontSize: 15 },
+  actions: { flexDirection: 'row', marginTop: 14, gap: 10, flexWrap: 'wrap' },
+  actionBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 },
+  actionText: { fontSize: 13, fontWeight: '600' },
+  empty: { textAlign: 'center', fontStyle: 'italic', marginTop: 40, lineHeight: 22 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 24,
   },
-  entry: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
+  modalCard: { borderRadius: 16, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 6 },
+  modalSubtitle: { fontSize: 14, marginBottom: 16, lineHeight: 20 },
+  modalOption: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 8,
   },
-  site: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  label: {
-    fontSize: 12,
-    marginTop: 6,
-    marginBottom: 2,
-  },
-  value: {
-    fontSize: 15,
-  },
-  passwordRow: {
-    marginBottom: 4,
-  },
-  actions: {
-    flexDirection: 'row',
-    marginTop: 14,
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  actionBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-  },
-  actionText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  empty: {
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginTop: 40,
-    lineHeight: 22,
-  },
+  modalOptionText: { fontSize: 15, fontWeight: '600' },
 });
 
 export default DashboardScreen;
