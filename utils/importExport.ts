@@ -1,5 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+// Expo SDK 54+: use legacy API for write/read helpers + cacheDirectory
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { loadVault, saveVault, PasswordEntry } from './vault';
 
@@ -8,10 +9,11 @@ import { loadVault, saveVault, PasswordEntry } from './vault';
 export const exportAsJSON = async (): Promise<void> => {
   const vault = await loadVault();
   const json = JSON.stringify(vault, null, 2);
-  const base = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+
+  const base = FileSystem.cacheDirectory || FileSystem.documentDirectory;
   if (!base) throw new Error('No writable directory available');
 
-  const fileUri = base + 'kryptix-export.json';
+  const fileUri = `${base}kryptix-export.json`;
 
   await FileSystem.writeAsStringAsync(fileUri, json);
 
@@ -39,10 +41,11 @@ export const exportAsCSV = async (): Promise<void> => {
   });
 
   const csv = [header, ...rows].join('\n');
-  const base = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+
+  const base = FileSystem.cacheDirectory || FileSystem.documentDirectory;
   if (!base) throw new Error('No writable directory available');
 
-  const fileUri = base + 'kryptix-export.csv';
+  const fileUri = `${base}kryptix-export.csv`;
 
   await FileSystem.writeAsStringAsync(fileUri, csv);
 
