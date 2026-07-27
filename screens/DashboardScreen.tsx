@@ -91,10 +91,12 @@ const DashboardScreen = () => {
 
   const [vault, setVault] = useState<PasswordEntry[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null); // null = All
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [formCategory, setFormCategory] = useState<string | null>(null);
 
+  // name stored in `site` field for backward compatibility
   const [site, setSite] = useState('');
+  const [url, setUrl] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(true);
@@ -106,7 +108,6 @@ const DashboardScreen = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
-  // Import category picker modal
   const [importEntries, setImportEntries] = useState<PasswordEntry[] | null>(null);
   const [showImportCategoryModal, setShowImportCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -132,6 +133,7 @@ const DashboardScreen = () => {
 
   const clearForm = useCallback(() => {
     setSite('');
+    setUrl('');
     setUsername('');
     setPassword('');
     setShowFormPassword(false);
@@ -184,6 +186,7 @@ const DashboardScreen = () => {
   const startEdit = (entry: PasswordEntry) => {
     setEditingId(entry.id);
     setSite(entry.site);
+    setUrl(entry.url || '');
     setUsername(entry.username);
     setPassword(entry.password);
     setFormCategory(entry.category || null);
@@ -193,7 +196,7 @@ const DashboardScreen = () => {
 
   const handleSave = async () => {
     if (!site || !username || !password) {
-      Alert.alert('Error', 'Please fill all fields');
+      Alert.alert('Error', 'Please fill Name, Username and Password');
       return;
     }
 
@@ -201,6 +204,7 @@ const DashboardScreen = () => {
       if (isEditing && editingId) {
         await updatePassword(editingId, {
           site,
+          url: url.trim() || undefined,
           username,
           password,
           category: formCategory || undefined,
@@ -208,6 +212,7 @@ const DashboardScreen = () => {
       } else {
         await addPassword({
           site,
+          url: url.trim() || undefined,
           username,
           password,
           category: formCategory || undefined,
@@ -259,7 +264,7 @@ const DashboardScreen = () => {
   const handleImport = async () => {
     try {
       const entries = await pickAndParseImportFile();
-      if (!entries) return; // cancelled
+      if (!entries) return;
 
       setImportEntries(entries);
       setShowImportCategoryModal(true);
@@ -274,7 +279,6 @@ const DashboardScreen = () => {
     if (!importEntries) return;
 
     try {
-      // If new category name was typed, create it first
       let cat = category;
       if (showNewCategoryInput && newCategoryName.trim()) {
         const updated = await addCategory(newCategoryName.trim());
@@ -297,20 +301,6 @@ const DashboardScreen = () => {
     }
   };
 
-  const handleCreateCategory = async () => {
-    const name = newCategoryName.trim();
-    if (!name) return;
-    try {
-      const updated = await addCategory(name);
-      setCategories(updated);
-      setNewCategoryName('');
-      setShowNewCategoryInput(false);
-      setFormCategory(name);
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not create category');
-    }
-  };
-
   const handleDeleteCategory = (name: string) => {
     Alert.alert(
       'Delete category',
@@ -321,13 +311,10 @@ const DashboardScreen = () => {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            // Move entries out of this category
             const data = await loadVault();
             const updated = data.map((e) =>
               e.category === name ? { ...e, category: undefined } : e
             );
-            // Save via sequential updates is heavy; use saveVault path through vault util
-            // We'll reload after deleting category metadata
             const { saveVault } = await import('../utils/vault');
             await saveVault(updated);
             const cats = await deleteCategory(name);
@@ -372,7 +359,6 @@ const DashboardScreen = () => {
         },
       ]}
     >
-      {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix Vault</Text>
         <View style={styles.headerRight}>
@@ -409,7 +395,6 @@ const DashboardScreen = () => {
         </View>
       )}
 
-      {/* Import / Export */}
       <View style={styles.ioBar}>
         <TouchableOpacity
           style={[styles.ioBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -440,7 +425,6 @@ const DashboardScreen = () => {
         </View>
       )}
 
-      {/* Category filter chips */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsRow} contentContainerStyle={{ gap: 8 }}>
         <TouchableOpacity
           style={[
@@ -452,14 +436,7 @@ const DashboardScreen = () => {
           ]}
           onPress={() => setSelectedCategory(null)}
         >
-          <Text
-            style={[
-              styles.chipText,
-              { color: selectedCategory === null ? '#fff' : colors.text },
-            ]}
-          >
-            All
-          </Text>
+          <Text style={[styles.chipText, { color: selectedCategory === null ? '#fff' : colors.text }]}>All</Text>
         </TouchableOpacity>
 
         {categories.map((cat) => (
@@ -475,49 +452,11 @@ const DashboardScreen = () => {
             onPress={() => setSelectedCategory(cat)}
             onLongPress={() => handleDeleteCategory(cat)}
           >
-            <Text
-              style={[
-                styles.chipText,
-                { color: selectedCategory === cat ? '#fff' : colors.text },
-              ]}
-            >
-              {cat}
-            </Text>
+            <Text style={[styles.chipText, { color: selectedCategory === cat ? '#fff' : colors.text }]}>{cat}</Text>
           </TouchableOpacity>
         ))}
-
-        <TouchableOpacity
-          style={[styles.chip, { backgroundColor: colors.card, borderColor: colors.border, borderStyle: 'dashed' }]}
-          onPress={() => {
-            setShowNewCategoryInput(true);
-            setNewCategoryName('');
-            Alert.prompt
-              ? Alert.prompt('New category', 'Enter category name', async (text) => {
-                  if (!text?.trim()) return;
-                  try {
-                    const updated = await addCategory(text.trim());
-                    setCategories(updated);
-                  } catch (e: any) {
-                    Alert.alert('Error', e?.message || 'Could not create category');
-                  }
-                })
-              : null;
-
-            // Fallback for Android (no Alert.prompt)
-            if (!Alert.prompt) {
-              setShowImportCategoryModal(false);
-              Alert.alert(
-                'New category',
-                'Type the name in the form Category field and long-press is not needed — use the + chip flow below in form.'
-              );
-            }
-          }}
-        >
-          <Text style={[styles.chipText, { color: colors.tint }]}>+ New</Text>
-        </TouchableOpacity>
       </ScrollView>
 
-      {/* Add / Edit Form */}
       <View style={[styles.form, { backgroundColor: colors.card }]}>
         {isEditing && (
           <View style={styles.editingBanner}>
@@ -529,14 +468,23 @@ const DashboardScreen = () => {
         )}
 
         <TextInput
-          placeholder="Site / App"
+          placeholder="Name"
           placeholderTextColor={colors.textSecondary}
           value={site}
           onChangeText={setSite}
           style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
         />
         <TextInput
-          placeholder="Username / Email"
+          placeholder="URL"
+          placeholderTextColor={colors.textSecondary}
+          value={url}
+          onChangeText={setUrl}
+          autoCapitalize="none"
+          keyboardType="url"
+          style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
+        />
+        <TextInput
+          placeholder="Username"
           placeholderTextColor={colors.textSecondary}
           value={username}
           onChangeText={setUsername}
@@ -544,7 +492,6 @@ const DashboardScreen = () => {
           autoCapitalize="none"
         />
 
-        {/* Category selector for form */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
           <TouchableOpacity
             style={[
@@ -645,7 +592,6 @@ const DashboardScreen = () => {
         </View>
       </View>
 
-      {/* List */}
       <FlatList
         data={filteredVault}
         keyExtractor={(item) => item.id}
@@ -675,8 +621,19 @@ const DashboardScreen = () => {
                   </View>
                 ) : null}
               </View>
+
+              {item.url ? (
+                <>
+                  <Text style={[styles.label, { color: colors.textSecondary }]}>URL</Text>
+                  <Text style={[styles.value, { color: colors.text }]} numberOfLines={1}>
+                    {item.url}
+                  </Text>
+                </>
+              ) : null}
+
               <Text style={[styles.label, { color: colors.textSecondary }]}>Username</Text>
               <Text style={[styles.value, { color: colors.text }]}>{item.username}</Text>
+
               <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
               <Text style={[styles.value, { color: colors.text }]}>
                 {isVisible ? item.password : '••••••••••••'}
@@ -746,7 +703,6 @@ const DashboardScreen = () => {
         }
       />
 
-      {/* Import category modal */}
       <Modal visible={showImportCategoryModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
