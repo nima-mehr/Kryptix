@@ -91,6 +91,7 @@ const DashboardScreen = () => {
   const [visiblePasswords, setVisiblePasswords] = useState<{ [key: string]: boolean }>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [showFormPassword, setShowFormPassword] = useState(false);
 
   const strength = useMemo(() => calculateStrength(password), [password]);
 
@@ -125,6 +126,7 @@ const DashboardScreen = () => {
       setSite('');
       setUsername('');
       setPassword('');
+      setShowFormPassword(false);
       // Success feedback removed — silent save
     } catch (error) {
       Alert.alert('Error', 'Failed to save password');
@@ -251,20 +253,33 @@ const DashboardScreen = () => {
           autoCapitalize="none"
         />
 
-        {/* Password field + Copy button */}
+        {/* Password field + Show + Copy buttons */}
         <View style={styles.passwordInputRow}>
           <TextInput
             placeholder="Password"
             placeholderTextColor={colors.textSecondary}
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            secureTextEntry={!showFormPassword}
             style={[
               styles.input,
               styles.passwordInput,
               { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text },
             ]}
           />
+          <TouchableOpacity
+            style={[
+              styles.copyInputBtn,
+              { backgroundColor: colors.tint + '18' },
+              !password && { opacity: 0.4 },
+            ]}
+            onPress={() => setShowFormPassword((prev) => !prev)}
+            disabled={!password}
+          >
+            <Text style={[styles.copyInputBtnText, { color: colors.tint }]}>
+              {showFormPassword ? 'Hide' : 'Show'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.copyInputBtn,
@@ -472,9 +487,9 @@ const styles = StyleSheet.create({
   },
   copyInputBtn: {
     paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     borderRadius: 10,
-    minWidth: 70,
+    minWidth: 64,
     alignItems: 'center',
   },
   copyInputBtnText: {
