@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useTheme } from '../context/ThemeContext';
@@ -16,6 +17,7 @@ const MASTER_PASSWORD_KEY = 'kryptix_master_password';
 
 const LoginScreen = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const [masterPassword, setMasterPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -51,7 +53,16 @@ const LoginScreen = () => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: colors.background,
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+        },
+      ]}
+    >
       <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
         Your Offline Password Manager
@@ -102,7 +113,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
-    padding: 30,
+    paddingHorizontal: 30,
   },
   title: {
     fontSize: 36,
