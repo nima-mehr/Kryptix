@@ -930,46 +930,6 @@ const DashboardScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {filteredVault.length > 0 && (
-        <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TouchableOpacity onPress={toggleSelectAllFiltered} style={styles.selectBarLeft}>
-            <View
-              style={[
-                styles.checkbox,
-                {
-                  borderColor: colors.tint,
-                  backgroundColor: allFilteredSelected ? colors.tint : 'transparent',
-                },
-              ]}
-            >
-              {allFilteredSelected ? <Text style={styles.checkmark}>✓</Text> : null}
-            </View>
-            <Text style={[styles.selectBarText, { color: colors.text }]}>
-              {selectedCount > 0 ? `${selectedCount} selected` : 'Select all'}
-            </Text>
-          </TouchableOpacity>
-
-          {selectedCount > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectBarActions}>
-              <TouchableOpacity onPress={clearSelection}>
-                <Text style={[styles.selectBarAction, { color: colors.textSecondary }]}>Clear</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowBulkCategoryModal(true)}>
-                <Text style={[styles.selectBarAction, { color: colors.tint }]}>Move</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleBulkFavorite}>
-                <Text style={[styles.selectBarAction, { color: colors.tint }]}>
-                  {selectedAllFavorited ? 'Unstar' : 'Star'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleBulkDelete}>
-                <Text style={[styles.selectBarAction, { color: colors.danger }]}>Delete</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          )}
-        </View>
-      )}
-
       <View style={[styles.form, { backgroundColor: colors.card }]}>
         {isEditing && (
           <View style={styles.editingBanner}>
@@ -1087,6 +1047,47 @@ const DashboardScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Select bar sits at bottom of main menu / top of saved passwords */}
+      {filteredVault.length > 0 && (
+        <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity onPress={toggleSelectAllFiltered} style={styles.selectBarLeft}>
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  borderColor: colors.tint,
+                  backgroundColor: allFilteredSelected ? colors.tint : 'transparent',
+                },
+              ]}
+            >
+              {allFilteredSelected ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+            <Text style={[styles.selectBarText, { color: colors.text }]}>
+              {selectedCount > 0 ? `${selectedCount} selected` : 'Select all'}
+            </Text>
+          </TouchableOpacity>
+
+          {selectedCount > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectBarActions}>
+              <TouchableOpacity onPress={clearSelection}>
+                <Text style={[styles.selectBarAction, { color: colors.textSecondary }]}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowBulkCategoryModal(true)}>
+                <Text style={[styles.selectBarAction, { color: colors.tint }]}>Move</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleBulkFavorite}>
+                <Text style={[styles.selectBarAction, { color: colors.tint }]}>
+                  {selectedAllFavorited ? 'Unstar' : 'Star'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleBulkDelete}>
+                <Text style={[styles.selectBarAction, { color: colors.danger }]}>Delete</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          )}
+        </View>
+      )}
     </>
   );
 
@@ -1359,7 +1360,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkmark: { color: '#fff', fontSize: 13, fontWeight: '800' },
-  form: { padding: 16, borderRadius: 12, marginBottom: 20 },
+  form: { padding: 16, borderRadius: 12, marginBottom: 16 },
   editingBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
