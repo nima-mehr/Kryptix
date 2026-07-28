@@ -4,6 +4,7 @@ import {
   Alert,
   BackHandler,
   Clipboard,
+  FlatList,
   Modal,
   ScrollView,
   StyleSheet,
@@ -12,12 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {
-  NestableDraggableFlatList,
-  NestableScrollContainer,
-  RenderItemParams,
-  ScaleDecorator,
-} from 'react-native-draggable-flatlist';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeMode, useTheme } from '../context/ThemeContext';
 import {
@@ -113,6 +108,14 @@ const matchesSearch = (entry: PasswordEntry, query: string): boolean => {
     (entry.notes || '').toLowerCase().includes(q) ||
     (entry.category || '').toLowerCase().includes(q)
   );
+};
+
+const swap = <T,>(arr: T[], i: number, j: number): T[] => {
+  const next = [...arr];
+  const tmp = next[i];
+  next[i] = next[j];
+  next[j] = tmp;
+  return next;
 };
 
 const DashboardScreen = () => {
@@ -438,12 +441,18 @@ const DashboardScreen = () => {
     }
   };
 
-  const onPasswordDragEnd = async ({ data }: { data: PasswordEntry[] }) => {
+  const movePassword = async (id: string, direction: -1 | 1) => {
+    const idx = filteredVault.findIndex((e) => e.id === id);
+    if (idx < 0) return;
+    const target = idx + direction;
+    if (target < 0 || target >= filteredVault.length) return;
+
+    const reordered = swap(filteredVault, idx, target);
     try {
       const next =
         listFilter === null && !searchQuery.trim()
-          ? data
-          : applyFilteredReorder(vault, data);
+          ? reordered
+          : applyFilteredReorder(vault, reordered);
       await saveVault(next);
       setVault(next);
     } catch {
@@ -451,10 +460,16 @@ const DashboardScreen = () => {
     }
   };
 
-  const onCategoryDragEnd = async ({ data }: { data: string[] }) => {
+  const moveCategory = async (name: string, direction: -1 | 1) => {
+    const idx = categories.indexOf(name);
+    if (idx < 0) return;
+    const target = idx + direction;
+    if (target < 0 || target >= categories.length) return;
+
+    const next = swap(categories, idx, target);
     try {
-      setCategories(data);
-      await reorderCategories(data);
+      setCategories(next);
+      await reorderCategories(next);
     } catch {
       Alert.alert('Error', 'Could not save category order');
     }
@@ -615,158 +630,165 @@ const DashboardScreen = () => {
     listFilter === FAVORITES_FILTER ? 'Favorites' : listFilter || 'All';
   const hasActiveSearch = searchQuery.trim().length > 0;
 
-  const renderPasswordItem = ({ item, drag, isActive }: RenderItemParams<PasswordEntry>) => {
+  const renderPasswordItem = ({ item, index }: { item: PasswordEntry; index: number }) => {
     const isVisible = visiblePasswords[item.id];
     const isCopied = copiedId === item.id;
     const isConfirmingDelete = confirmingDeleteId === item.id;
     const isBeingEdited = editingId === item.id;
     const isSelected = !!selectedIds[item.id];
     const isFav = !!item.favorite;
+    const canUp = index > 0;
+    const canDown = index < filteredVault.length - 1;
 
     return (
-      <ScaleDecorator>
-        <View
-          style={[
-            styles.entry,
-            {
-              backgroundColor: colors.card,
-              borderWidth: isBeingEdited || isSelected || isActive ? 1.5 : 0,
-              borderColor: isActive
-                ? colors.tint
-                : isBeingEdited
-                  ? colors.tint
-                  : isSelected
-                    ? colors.tint + '99'
-                    : 'transparent',
-              opacity: isActive ? 0.95 : 1,
-            },
-          ]}
-        >
-          <View style={styles.entryHeader}>
+      <View
+        style={[
+          styles.entry,
+          {
+            backgroundColor: colors.card,
+            borderWidth: isBeingEdited || isSelected ? 1.5 : 0,
+            borderColor: isBeingEdited
+              ? colors.tint
+              : isSelected
+                ? colors.tint + '99'
+                : 'transparent',
+          },
+        ]}
+      >
+        <View style={styles.entryHeader}>
+          <View style={styles.reorderCol}>
             <TouchableOpacity
-              onLongPress={drag}
-              delayLongPress={180}
-              style={styles.dragHandle}
-              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+              onPress={() => movePassword(item.id, -1)}
+              disabled={!canUp}
+              style={[styles.reorderBtn, !canUp && { opacity: 0.25 }]}
+              hitSlop={{ top: 4, bottom: 2, left: 6, right: 6 }}
             >
-              <Text style={[styles.dragHandleText, { color: colors.textSecondary }]}>⠿</Text>
+              <Text style={[styles.reorderBtnText, { color: colors.textSecondary }]}>▲</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-              onPress={() => toggleSelect(item.id)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={{ marginRight: 8 }}
+              onPress={() => movePassword(item.id, 1)}
+              disabled={!canDown}
+              style={[styles.reorderBtn, !canDown && { opacity: 0.25 }]}
+              hitSlop={{ top: 2, bottom: 4, left: 6, right: 6 }}
             >
-              <View
-                style={[
-                  styles.checkbox,
-                  {
-                    borderColor: colors.tint,
-                    backgroundColor: isSelected ? colors.tint : 'transparent',
-                  },
-                ]}
-              >
-                {isSelected ? <Text style={styles.checkmark}>✓</Text> : null}
-              </View>
+              <Text style={[styles.reorderBtnText, { color: colors.textSecondary }]}>▼</Text>
             </TouchableOpacity>
-
-            <Text style={[styles.site, { color: colors.text, flex: 1 }]}>{item.site}</Text>
-
-            <TouchableOpacity
-              onPress={() => toggleFavorite(item)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={styles.starBtn}
-            >
-              <Text style={[styles.starIcon, { color: isFav ? '#f5a623' : colors.textSecondary }]}>
-                {isFav ? '★' : '☆'}
-              </Text>
-            </TouchableOpacity>
-
-            {item.category ? (
-              <View style={[styles.catBadge, { backgroundColor: colors.tint + '22' }]}>
-                <Text style={[styles.catBadgeText, { color: colors.tint }]}>{item.category}</Text>
-              </View>
-            ) : null}
           </View>
 
-          {item.url ? (
-            <>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>URL</Text>
-              <Text style={[styles.value, { color: colors.text }]} numberOfLines={1}>
-                {item.url}
-              </Text>
-            </>
+          <TouchableOpacity
+            onPress={() => toggleSelect(item.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ marginRight: 8 }}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  borderColor: colors.tint,
+                  backgroundColor: isSelected ? colors.tint : 'transparent',
+                },
+              ]}
+            >
+              {isSelected ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+          </TouchableOpacity>
+
+          <Text style={[styles.site, { color: colors.text, flex: 1 }]}>{item.site}</Text>
+
+          <TouchableOpacity
+            onPress={() => toggleFavorite(item)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.starBtn}
+          >
+            <Text style={[styles.starIcon, { color: isFav ? '#f5a623' : colors.textSecondary }]}>
+              {isFav ? '★' : '☆'}
+            </Text>
+          </TouchableOpacity>
+
+          {item.category ? (
+            <View style={[styles.catBadge, { backgroundColor: colors.tint + '22' }]}>
+              <Text style={[styles.catBadgeText, { color: colors.tint }]}>{item.category}</Text>
+            </View>
           ) : null}
-
-          <Text style={[styles.label, { color: colors.textSecondary }]}>Username</Text>
-          <Text style={[styles.value, { color: colors.text }]}>{item.username}</Text>
-
-          <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
-          <Text style={[styles.value, { color: colors.text }]}>
-            {isVisible ? item.password : '••••••••••••'}
-          </Text>
-
-          {item.notes ? (
-            <>
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Note</Text>
-              <Text style={[styles.value, { color: colors.text }]}>{item.notes}</Text>
-            </>
-          ) : null}
-
-          <View style={styles.actions}>
-            {!isConfirmingDelete ? (
-              <>
-                <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
-                  onPress={() => togglePasswordVisibility(item.id)}
-                >
-                  <Text style={[styles.actionText, { color: colors.text }]}>
-                    {isVisible ? 'Hide' : 'Show'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.actionBtn,
-                    { backgroundColor: isCopied ? colors.successBackground : colors.overlay },
-                  ]}
-                  onPress={() => copyToClipboard(item.password, item.id)}
-                >
-                  <Text style={[styles.actionText, { color: isCopied ? colors.success : colors.text }]}>
-                    {isCopied ? 'Copied!' : 'Copy'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
-                  onPress={() => startEdit(item)}
-                >
-                  <Text style={[styles.actionText, { color: colors.tint }]}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
-                  onPress={() => setConfirmingDeleteId(item.id)}
-                >
-                  <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
-                  onPress={() => setConfirmingDeleteId(null)}
-                >
-                  <Text style={[styles.actionText, { color: colors.text }]}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
-                  onPress={() => confirmDelete(item.id)}
-                >
-                  <Text style={[styles.actionText, { color: colors.danger }]}>Remove</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
         </View>
-      </ScaleDecorator>
+
+        {item.url ? (
+          <>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>URL</Text>
+            <Text style={[styles.value, { color: colors.text }]} numberOfLines={1}>
+              {item.url}
+            </Text>
+          </>
+        ) : null}
+
+        <Text style={[styles.label, { color: colors.textSecondary }]}>Username</Text>
+        <Text style={[styles.value, { color: colors.text }]}>{item.username}</Text>
+
+        <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
+        <Text style={[styles.value, { color: colors.text }]}>
+          {isVisible ? item.password : '••••••••••••'}
+        </Text>
+
+        {item.notes ? (
+          <>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Note</Text>
+            <Text style={[styles.value, { color: colors.text }]}>{item.notes}</Text>
+          </>
+        ) : null}
+
+        <View style={styles.actions}>
+          {!isConfirmingDelete ? (
+            <>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                onPress={() => togglePasswordVisibility(item.id)}
+              >
+                <Text style={[styles.actionText, { color: colors.text }]}>
+                  {isVisible ? 'Hide' : 'Show'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.actionBtn,
+                  { backgroundColor: isCopied ? colors.successBackground : colors.overlay },
+                ]}
+                onPress={() => copyToClipboard(item.password, item.id)}
+              >
+                <Text style={[styles.actionText, { color: isCopied ? colors.success : colors.text }]}>
+                  {isCopied ? 'Copied!' : 'Copy'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                onPress={() => startEdit(item)}
+              >
+                <Text style={[styles.actionText, { color: colors.tint }]}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
+                onPress={() => setConfirmingDeleteId(item.id)}
+              >
+                <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                onPress={() => setConfirmingDeleteId(null)}
+              >
+                <Text style={[styles.actionText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
+                onPress={() => confirmDelete(item.id)}
+              >
+                <Text style={[styles.actionText, { color: colors.danger }]}>Remove</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
     );
   };
 
@@ -916,10 +938,15 @@ const DashboardScreen = () => {
       )}
 
       <Text style={[styles.reorderHint, { color: colors.textSecondary }]}>
-        Long-press ⠿ or a category chip to reorder
+        Use ▲▼ on entries and ‹› on categories to reorder
       </Text>
 
-      <View style={styles.chipsRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipsRow}
+        contentContainerStyle={styles.chipsContent}
+      >
         <TouchableOpacity
           style={[
             styles.chip,
@@ -955,50 +982,51 @@ const DashboardScreen = () => {
           </Text>
         </TouchableOpacity>
 
-        <NestableDraggableFlatList
-          horizontal
-          data={categories}
-          keyExtractor={(item) => item}
-          onDragEnd={onCategoryDragEnd}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsContent}
-          activationDistance={8}
-          renderItem={({ item: cat, drag, isActive }: RenderItemParams<string>) => {
-            const isSelected = listFilter === cat;
-            return (
-              <ScaleDecorator>
-                <View style={styles.categoryChipRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: isSelected ? colors.tint : colors.card,
-                        borderColor: isActive ? colors.tint : colors.border,
-                        borderWidth: isActive ? 2 : 1,
-                        opacity: isActive ? 0.9 : 1,
-                      },
-                    ]}
-                    onPress={() => setListFilter(cat)}
-                    onLongPress={drag}
-                    delayLongPress={200}
-                  >
-                    <Text style={[styles.chipText, { color: isSelected ? '#fff' : colors.text }]}>
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                  {isSelected && (
-                    <TouchableOpacity
-                      style={[styles.categoryDeleteButton, { backgroundColor: colors.dangerBackground }]}
-                      onPress={() => handleDeleteCategory(cat)}
-                    >
-                      <Text style={[styles.categoryDeleteText, { color: colors.danger }]}>Delete</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </ScaleDecorator>
-            );
-          }}
-        />
+        {categories.map((cat, catIndex) => {
+          const isSelected = listFilter === cat;
+          const canLeft = catIndex > 0;
+          const canRight = catIndex < categories.length - 1;
+          return (
+            <View key={cat} style={styles.categoryChipRow}>
+              <TouchableOpacity
+                onPress={() => moveCategory(cat, -1)}
+                disabled={!canLeft}
+                style={[styles.catReorderBtn, !canLeft && { opacity: 0.25 }]}
+              >
+                <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '700' }}>‹</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: isSelected ? colors.tint : colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={() => setListFilter(cat)}
+              >
+                <Text style={[styles.chipText, { color: isSelected ? '#fff' : colors.text }]}>
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => moveCategory(cat, 1)}
+                disabled={!canRight}
+                style={[styles.catReorderBtn, !canRight && { opacity: 0.25 }]}
+              >
+                <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '700' }}>›</Text>
+              </TouchableOpacity>
+              {isSelected && (
+                <TouchableOpacity
+                  style={[styles.categoryDeleteButton, { backgroundColor: colors.dangerBackground }]}
+                  onPress={() => handleDeleteCategory(cat)}
+                >
+                  <Text style={[styles.categoryDeleteText, { color: colors.danger }]}>Delete</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })}
 
         <TouchableOpacity
           style={[styles.chip, { backgroundColor: colors.card, borderColor: colors.tint, borderStyle: 'dashed' }]}
@@ -1006,7 +1034,7 @@ const DashboardScreen = () => {
         >
           <Text style={[styles.chipText, { color: colors.tint }]}>+ Add</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
 
       <View style={[styles.form, { backgroundColor: colors.card }]}>
         {isEditing && (
@@ -1187,26 +1215,18 @@ const DashboardScreen = () => {
         },
       ]}
     >
-      <NestableScrollContainer
+      <FlatList
         style={styles.list}
+        data={filteredVault}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={listHeader}
+        renderItem={renderPasswordItem}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-      >
-        {listHeader}
-
-        {filteredVault.length === 0 ? (
+        ListEmptyComponent={
           <Text style={[styles.empty, { color: colors.textSecondary }]}>{emptyMessage}</Text>
-        ) : (
-          <NestableDraggableFlatList
-            data={filteredVault}
-            keyExtractor={(item) => item.id}
-            onDragEnd={onPasswordDragEnd}
-            activationDistance={10}
-            scrollEnabled={false}
-            renderItem={renderPasswordItem}
-          />
-        )}
-      </NestableScrollContainer>
+        }
+      />
 
       <Modal visible={showBulkCategoryModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -1405,15 +1425,10 @@ const styles = StyleSheet.create({
   exportOption: { paddingVertical: 12, paddingHorizontal: 16 },
   exportOptionText: { fontSize: 15, fontWeight: '600' },
   reorderHint: { fontSize: 12, marginBottom: 8 },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
+  chipsRow: { marginBottom: 12, maxHeight: 48 },
   chipsContent: { gap: 8, alignItems: 'center', paddingVertical: 2 },
-  categoryChipRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginRight: 4 },
+  categoryChipRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  catReorderBtn: { paddingHorizontal: 4, paddingVertical: 4 },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -1427,6 +1442,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 4,
   },
   categoryDeleteText: { fontSize: 12, fontWeight: '700' },
   selectBar: {
@@ -1512,8 +1528,9 @@ const styles = StyleSheet.create({
   addBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   entry: { padding: 16, borderRadius: 12, marginBottom: 12 },
   entryHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 4 },
-  dragHandle: { paddingRight: 4, paddingVertical: 2 },
-  dragHandleText: { fontSize: 20, fontWeight: '700' },
+  reorderCol: { marginRight: 4, alignItems: 'center' },
+  reorderBtn: { paddingVertical: 1, paddingHorizontal: 4 },
+  reorderBtnText: { fontSize: 11, fontWeight: '700' },
   site: { fontSize: 18, fontWeight: 'bold' },
   starBtn: { paddingHorizontal: 4, paddingVertical: 2 },
   starIcon: { fontSize: 22, fontWeight: '700' },
