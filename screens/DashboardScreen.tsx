@@ -24,6 +24,7 @@ import {
   loadVault,
   PasswordEntry,
   updatePassword,
+  updatePasswords,
 } from '../utils/vault';
 
 type StrengthLevel = {
@@ -34,6 +35,10 @@ type StrengthLevel = {
 };
 
 type ExportFormat = 'json' | 'csv';
+/** null = All, '__favorites__' = starred only, else category name */
+type ListFilter = string | null;
+
+const FAVORITES_FILTER = '__favorites__';
 
 const calculateStrength = (password: string): StrengthLevel => {
   if (!password) return { score: 0, label: '', color: '#e0e0e0', feedback: '' };
@@ -87,6 +92,14 @@ const calculateStrength = (password: string): StrengthLevel => {
   };
 };
 
+const sortWithFavoritesFirst = (list: PasswordEntry[]) =>
+  [...list].sort((a, b) => {
+    const af = a.favorite ? 1 : 0;
+    const bf = b.favorite ? 1 : 0;
+    if (bf !== af) return bf - af;
+    return (b.updatedAt || 0) - (a.updatedAt || 0);
+  });
+
 const DashboardScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -94,7 +107,7 @@ const DashboardScreen = () => {
 
   const [vault, setVault] = useState<PasswordEntry[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [listFilter, setListFilter] = useState<ListFilter>(null);
   const [formCategory, setFormCategory] = useState<string | null>(null);
 
   const [site, setSite] = useState('');
@@ -113,6 +126,7 @@ const DashboardScreen = () => {
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
+  const [showBulkCategoryModal, setShowBulkCategoryModal] = useState(false);
 
   const [importEntries, setImportEntries] = useState<PasswordEntry[] | null>(null);
   const [showImportCategoryModal, setShowImportCategoryModal] = useState(false);
@@ -124,13 +138,26 @@ const DashboardScreen = () => {
   const strength = useMemo(() => calculateStrength(password), [password]);
   const isEditing = editingId !== null;
 
+  const activeCategory =
+    listFilter && listFilter !== FAVORITES_FILTER ? listFilter : null;
+
   const filteredVault = useMemo(() => {
-    if (!selectedCategory) return vault;
-    return vault.filter((e) => e.category === selectedCategory);
-  }, [vault, selectedCategory]);
+    let list = vault;
+    if (listFilter === FAVORITES_FILTER) {
+      list = vault.filter((e) => e.favorite);
+    } else if (listFilter) {
+      list = vault.filter((e) => e.category === listFilter);
+    }
+    return sortWithFavoritesFirst(list);
+  }, [vault, listFilter]);
 
   const selectedCount = useMemo(
     () => Object.values(selectedIds).filter(Boolean).length,
+    [selectedIds]
+  );
+
+  const selectedIdList = useMemo(
+    () => Object.keys(selectedIds).filter((id) => selectedIds[id]),
     [selectedIds]
   );
 
@@ -141,6 +168,9 @@ const DashboardScreen = () => {
 
   const allFilteredSelected =
     filteredVault.length > 0 && filteredVault.every((e) => selectedIds[e.id]);
+
+  const selectedAllFavorited =
+    selectedCount > 0 && selectedEntries.every((e) => e.favorite);
 
   useEffect(() => {
     const loadData = async () => {
@@ -160,8 +190,8 @@ const DashboardScreen = () => {
     setNotes('');
     setShowFormPassword(false);
     setEditingId(null);
-    setFormCategory(selectedCategory);
-  }, [selectedCategory]);
+    setFormCategory(activeCategory);
+  }, [activeCategory]);
 
   const closeExportMenu = useCallback(() => {
     setShowExportMenu(false);
@@ -171,6 +201,10 @@ const DashboardScreen = () => {
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
+        if (showBulkCategoryModal) {
+          setShowBulkCategoryModal(false);
+          return true;
+        }
         if (showCreateCategoryModal) {
           setShowCreateCategoryModal(false);
           return true;
@@ -214,6 +248,7 @@ const DashboardScreen = () => {
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
     }, [
+      showBulkCategoryModal,
       showCreateCategoryModal,
       showImportCategoryModal,
       showThemePicker,
@@ -257,7 +292,7 @@ const DashboardScreen = () => {
     }
 
     try {
-      const categoryForSave = isEditing ? formCategory : selectedCategory;
+      const categoryForSave = isEditing ? formCategory : activeCategory;
 
       const payload = {
         site,
@@ -290,6 +325,15 @@ const DashboardScreen = () => {
       return next;
     });
     if (editingId === id) clearForm();
+  };
+
+  const toggleFavorite = async (entry: PasswordEntry) => {
+    try {
+      await updatePassword(entry.id, { favorite: !entry.favorite });
+      setVault(await loadVault());
+    } catch {
+      Alert.alert('Error', 'Could not update favorite');
+    }
   };
 
   const toggleSelect = (id: string) => {
@@ -332,15 +376,54 @@ const DashboardScreen = () => {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            const ids = Object.keys(selectedIds).filter((id) => selectedIds[id]);
-            await deletePasswords(ids);
+            await deletePasswords(selectedIdList);
             setVault(await loadVault());
             setSelectedIds({});
-            if (editingId && ids.includes(editingId)) clearForm();
+            if (editingId && selectedIdList.includes(editingId)) clearForm();
           },
         },
       ]
     );
+  };
+
+  const handleBulkFavorite = async () => {
+    if (selectedCount === 0) return;
+    const nextValue = !selectedAllFavorited;
+    try {
+      await updatePasswords(selectedIdList, { favorite: nextValue });
+      setVault(await loadVault());
+    } catch {
+      Alert.alert('Error', 'Could not update favorites');
+    }
+  };
+
+  const applyBulkCategory = async (category: string | null) => {
+    if (selectedCount === 0) return;
+    try {
+      await updatePasswords(selectedIdList, {
+        category: category || undefined,
+      });
+      // Clear category field when moving to main list — need explicit undefined
+      // updatePasswords merges; undefined may skip. Force via map if needed.
+      if (category === null) {
+        const { saveVault } = await import('../utils/vault');
+        const data = await loadVault();
+        const idSet = new Set(selectedIdList);
+        const now = Date.now();
+        await saveVault(
+          data.map((e) =>
+            idSet.has(e.id)
+              ? { ...e, category: undefined, updatedAt: now }
+              : e
+          )
+        );
+      }
+      setVault(await loadVault());
+      setShowBulkCategoryModal(false);
+      setSelectedIds({});
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not move passwords');
+    }
   };
 
   const togglePasswordVisibility = (id: string) => {
@@ -368,7 +451,7 @@ const DashboardScreen = () => {
     try {
       const updated = await addCategory(name);
       setCategories(updated);
-      setSelectedCategory(name);
+      setListFilter(name);
       setFormCategory(name);
       setShowCreateCategoryModal(false);
       setNewCategoryName('');
@@ -478,7 +561,7 @@ const DashboardScreen = () => {
               setCategories(cats);
               setVault(updated);
               setExpandedCategory(null);
-              if (selectedCategory === name) setSelectedCategory(null);
+              if (listFilter === name) setListFilter(null);
               if (formCategory === name) setFormCategory(null);
             } catch (e: any) {
               Alert.alert('Error', e?.message || 'Could not delete category');
@@ -509,6 +592,10 @@ const DashboardScreen = () => {
 
   const isFormCopied = copiedId === 'form';
   const formatLabel = exportFormat === 'json' ? 'JSON' : exportFormat === 'csv' ? 'CSV' : '';
+  const filterLabel =
+    listFilter === FAVORITES_FILTER
+      ? 'Favorites'
+      : listFilter || 'All';
 
   const listHeader = (
     <>
@@ -608,9 +695,9 @@ const DashboardScreen = () => {
                 style={styles.exportOption}
                 onPress={() => runExport(exportFormat, 'category')}
               >
-                <Text style={[styles.exportOptionText, { color: colors.text }]}>Current category</Text>
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>Current filter</Text>
                 <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
-                  {selectedCategory || 'All'} ({filteredVault.length})
+                  {filterLabel} ({filteredVault.length})
                 </Text>
               </TouchableOpacity>
 
@@ -642,23 +729,46 @@ const DashboardScreen = () => {
           style={[
             styles.chip,
             {
-              backgroundColor: selectedCategory === null ? colors.tint : colors.card,
+              backgroundColor: listFilter === null ? colors.tint : colors.card,
               borderColor: colors.border,
             },
           ]}
           onPress={() => {
-            setSelectedCategory(null);
+            setListFilter(null);
             setExpandedCategory(null);
           }}
         >
-          <Text style={[styles.chipText, { color: selectedCategory === null ? '#fff' : colors.text }]}>
+          <Text style={[styles.chipText, { color: listFilter === null ? '#fff' : colors.text }]}>
             All
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.chip,
+            {
+              backgroundColor: listFilter === FAVORITES_FILTER ? colors.tint : colors.card,
+              borderColor: colors.border,
+            },
+          ]}
+          onPress={() => {
+            setListFilter(FAVORITES_FILTER);
+            setExpandedCategory(null);
+          }}
+        >
+          <Text
+            style={[
+              styles.chipText,
+              { color: listFilter === FAVORITES_FILTER ? '#fff' : colors.text },
+            ]}
+          >
+            ★ Favorites
           </Text>
         </TouchableOpacity>
 
         {categories.map((cat) => {
           const isExpanded = expandedCategory === cat;
-          const isActive = selectedCategory === cat;
+          const isActive = listFilter === cat;
 
           return (
             <View key={cat} style={styles.categoryChipRow}>
@@ -672,8 +782,7 @@ const DashboardScreen = () => {
                   },
                 ]}
                 onPress={() => {
-                  setSelectedCategory(cat);
-                  // Tap only filters — collapse delete if open on another chip
+                  setListFilter(cat);
                   if (expandedCategory && expandedCategory !== cat) {
                     setExpandedCategory(null);
                   }
@@ -726,14 +835,26 @@ const DashboardScreen = () => {
           </TouchableOpacity>
 
           {selectedCount > 0 && (
-            <View style={styles.selectBarActions}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.selectBarActions}
+            >
               <TouchableOpacity onPress={clearSelection}>
                 <Text style={[styles.selectBarAction, { color: colors.textSecondary }]}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowBulkCategoryModal(true)}>
+                <Text style={[styles.selectBarAction, { color: colors.tint }]}>Move</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleBulkFavorite}>
+                <Text style={[styles.selectBarAction, { color: colors.tint }]}>
+                  {selectedAllFavorited ? 'Unstar' : 'Star'}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleBulkDelete}>
                 <Text style={[styles.selectBarAction, { color: colors.danger }]}>Delete</Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           )}
         </View>
       )}
@@ -882,6 +1003,7 @@ const DashboardScreen = () => {
           const isConfirmingDelete = confirmingDeleteId === item.id;
           const isBeingEdited = editingId === item.id;
           const isSelected = !!selectedIds[item.id];
+          const isFav = !!item.favorite;
 
           return (
             <View
@@ -918,6 +1040,17 @@ const DashboardScreen = () => {
                 </TouchableOpacity>
 
                 <Text style={[styles.site, { color: colors.text, flex: 1 }]}>{item.site}</Text>
+
+                <TouchableOpacity
+                  onPress={() => toggleFavorite(item)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={styles.starBtn}
+                >
+                  <Text style={[styles.starIcon, { color: isFav ? '#f5a623' : colors.textSecondary }]}>
+                    {isFav ? '★' : '☆'}
+                  </Text>
+                </TouchableOpacity>
+
                 {item.category ? (
                   <View style={[styles.catBadge, { backgroundColor: colors.tint + '22' }]}>
                     <Text style={[styles.catBadgeText, { color: colors.tint }]}>{item.category}</Text>
@@ -1006,12 +1139,50 @@ const DashboardScreen = () => {
         }}
         ListEmptyComponent={
           <Text style={[styles.empty, { color: colors.textSecondary }]}>
-            {selectedCategory
-              ? `No passwords in "${selectedCategory}" yet.`
-              : 'No passwords saved yet.\nAdd your first one above!'}
+            {listFilter === FAVORITES_FILTER
+              ? 'No favorites yet.\nTap ★ on a password to star it.'
+              : listFilter
+                ? `No passwords in "${listFilter}" yet.`
+                : 'No passwords saved yet.\nAdd your first one above!'}
           </Text>
         }
       />
+
+      {/* Bulk move to category */}
+      <Modal visible={showBulkCategoryModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Move selected</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+              Move {selectedCount} password{selectedCount === 1 ? '' : 's'} to…
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.modalOption, { borderColor: colors.border }]}
+              onPress={() => applyBulkCategory(null)}
+            >
+              <Text style={[styles.modalOptionText, { color: colors.text }]}>Main list</Text>
+            </TouchableOpacity>
+
+            {categories.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.modalOption, { borderColor: colors.border }]}
+                onPress={() => applyBulkCategory(cat)}
+              >
+                <Text style={[styles.modalOptionText, { color: colors.text }]}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={{ marginTop: 16, alignItems: 'center' }}
+              onPress={() => setShowBulkCategoryModal(false)}
+            >
+              <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={showCreateCategoryModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -1214,10 +1385,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     marginBottom: 12,
+    gap: 8,
   },
-  selectBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  selectBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
   selectBarText: { fontSize: 14, fontWeight: '600' },
-  selectBarActions: { flexDirection: 'row', gap: 16 },
+  selectBarActions: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingLeft: 4 },
   selectBarAction: { fontSize: 14, fontWeight: '700' },
   checkbox: {
     width: 22,
@@ -1291,6 +1463,8 @@ const styles = StyleSheet.create({
   entry: { padding: 16, borderRadius: 12, marginBottom: 12 },
   entryHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 4 },
   site: { fontSize: 18, fontWeight: 'bold' },
+  starBtn: { paddingHorizontal: 4, paddingVertical: 2 },
+  starIcon: { fontSize: 22, fontWeight: '700' },
   catBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   catBadgeText: { fontSize: 11, fontWeight: '600' },
   label: { fontSize: 12, marginTop: 6, marginBottom: 2 },
