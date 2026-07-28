@@ -4,7 +4,6 @@ import {
   Alert,
   BackHandler,
   Clipboard,
-  FlatList,
   Modal,
   ScrollView,
   StyleSheet,
@@ -13,16 +12,29 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import DraggableFlatList, {
+  NestableDraggableFlatList,
+  NestableScrollContainer,
+  RenderItemParams,
+  ScaleDecorator,
+} from 'react-native-draggable-flatlist';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeMode, useTheme } from '../context/ThemeContext';
-import { addCategory, deleteCategory, loadCategories } from '../utils/categories';
+import {
+  addCategory,
+  deleteCategory,
+  loadCategories,
+  reorderCategories,
+} from '../utils/categories';
 import { commitImport, exportAsCSV, exportAsJSON, pickAndParseImportFile } from '../utils/importExport';
+import { applyFilteredReorder } from '../utils/reorder';
 import {
   addPassword,
   deletePassword,
   deletePasswords,
   loadVault,
   PasswordEntry,
+  saveVault,
   updatePassword,
   updatePasswords,
 } from '../utils/vault';
@@ -35,7 +47,6 @@ type StrengthLevel = {
 };
 
 type ExportFormat = 'json' | 'csv';
-/** null = All, '__favorites__' = starred only, else category name */
 type ListFilter = string | null;
 
 const FAVORITES_FILTER = '__favorites__';
@@ -92,14 +103,6 @@ const calculateStrength = (password: string): StrengthLevel => {
   };
 };
 
-const sortWithFavoritesFirst = (list: PasswordEntry[]) =>
-  [...list].sort((a, b) => {
-    const af = a.favorite ? 1 : 0;
-    const bf = b.favorite ? 1 : 0;
-    if (bf !== af) return bf - af;
-    return (b.updatedAt || 0) - (a.updatedAt || 0);
-  });
-
 const DashboardScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -133,7 +136,6 @@ const DashboardScreen = () => {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false);
-  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const strength = useMemo(() => calculateStrength(password), [password]);
   const isEditing = editingId !== null;
@@ -141,14 +143,11 @@ const DashboardScreen = () => {
   const activeCategory =
     listFilter && listFilter !== FAVORITES_FILTER ? listFilter : null;
 
+  // Preserve manual order — no auto-sort so drag-and-drop sticks
   const filteredVault = useMemo(() => {
-    let list = vault;
-    if (listFilter === FAVORITES_FILTER) {
-      list = vault.filter((e) => e.favorite);
-    } else if (listFilter) {
-      list = vault.filter((e) => e.category === listFilter);
-    }
-    return sortWithFavoritesFirst(list);
+    if (listFilter === FAVORITES_FILTER) return vault.filter((e) => e.favorite);
+    if (listFilter) return vault.filter((e) => e.category === listFilter);
+    return vault;
   }, [vault, listFilter]);
 
   const selectedCount = useMemo(
@@ -218,16 +217,9 @@ const DashboardScreen = () => {
           setShowThemePicker(false);
           return true;
         }
-        if (expandedCategory) {
-          setExpandedCategory(null);
-          return true;
-        }
         if (showExportMenu) {
-          if (exportFormat) {
-            setExportFormat(null);
-          } else {
-            closeExportMenu();
-          }
+          if (exportFormat) setExportFormat(null);
+          else closeExportMenu();
           return true;
         }
         if (selectedCount > 0) {
@@ -254,7 +246,6 @@ const DashboardScreen = () => {
       showThemePicker,
       showExportMenu,
       exportFormat,
-      expandedCategory,
       selectedCount,
       confirmingDeleteId,
       editingId,
@@ -293,7 +284,6 @@ const DashboardScreen = () => {
 
     try {
       const categoryForSave = isEditing ? formCategory : activeCategory;
-
       const payload = {
         site,
         url: url.trim() || undefined,
@@ -337,10 +327,7 @@ const DashboardScreen = () => {
   };
 
   const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+    setSelectedIds((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const toggleSelectAllFiltered = () => {
@@ -388,9 +375,8 @@ const DashboardScreen = () => {
 
   const handleBulkFavorite = async () => {
     if (selectedCount === 0) return;
-    const nextValue = !selectedAllFavorited;
     try {
-      await updatePasswords(selectedIdList, { favorite: nextValue });
+      await updatePasswords(selectedIdList, { favorite: !selectedAllFavorited });
       setVault(await loadVault());
     } catch {
       Alert.alert('Error', 'Could not update favorites');
@@ -400,29 +386,41 @@ const DashboardScreen = () => {
   const applyBulkCategory = async (category: string | null) => {
     if (selectedCount === 0) return;
     try {
-      await updatePasswords(selectedIdList, {
-        category: category || undefined,
-      });
-      // Clear category field when moving to main list — need explicit undefined
-      // updatePasswords merges; undefined may skip. Force via map if needed.
-      if (category === null) {
-        const { saveVault } = await import('../utils/vault');
-        const data = await loadVault();
-        const idSet = new Set(selectedIdList);
-        const now = Date.now();
-        await saveVault(
-          data.map((e) =>
-            idSet.has(e.id)
-              ? { ...e, category: undefined, updatedAt: now }
-              : e
-          )
-        );
-      }
+      const data = await loadVault();
+      const idSet = new Set(selectedIdList);
+      const now = Date.now();
+      await saveVault(
+        data.map((e) =>
+          idSet.has(e.id)
+            ? { ...e, category: category || undefined, updatedAt: now }
+            : e
+        )
+      );
       setVault(await loadVault());
       setShowBulkCategoryModal(false);
       setSelectedIds({});
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Could not move passwords');
+    }
+  };
+
+  const onPasswordDragEnd = async ({ data }: { data: PasswordEntry[] }) => {
+    try {
+      const next =
+        listFilter === null ? data : applyFilteredReorder(vault, data);
+      await saveVault(next);
+      setVault(next);
+    } catch {
+      Alert.alert('Error', 'Could not save new order');
+    }
+  };
+
+  const onCategoryDragEnd = async ({ data }: { data: string[] }) => {
+    try {
+      setCategories(data);
+      await reorderCategories(data);
+    } catch {
+      Alert.alert('Error', 'Could not save category order');
     }
   };
 
@@ -461,9 +459,8 @@ const DashboardScreen = () => {
   };
 
   const toggleExportMenu = () => {
-    if (showExportMenu) {
-      closeExportMenu();
-    } else {
+    if (showExportMenu) closeExportMenu();
+    else {
       setExportFormat(null);
       setShowExportMenu(true);
     }
@@ -473,10 +470,8 @@ const DashboardScreen = () => {
     closeExportMenu();
     try {
       let entries: PasswordEntry[] | undefined;
-
-      if (scope === 'all') {
-        entries = undefined;
-      } else if (scope === 'category') {
+      if (scope === 'all') entries = undefined;
+      else if (scope === 'category') {
         entries = filteredVault;
         if (entries.length === 0) {
           Alert.alert('Nothing to export', 'No passwords in the current filter.');
@@ -489,12 +484,8 @@ const DashboardScreen = () => {
           return;
         }
       }
-
-      if (format === 'json') {
-        await exportAsJSON(entries);
-      } else {
-        await exportAsCSV(entries);
-      }
+      if (format === 'json') await exportAsJSON(entries);
+      else await exportAsCSV(entries);
     } catch (e: any) {
       Alert.alert('Export failed', e?.message || 'Could not export vault');
     }
@@ -504,7 +495,6 @@ const DashboardScreen = () => {
     try {
       const entries = await pickAndParseImportFile();
       if (!entries) return;
-
       setImportEntries(entries);
       setShowImportCategoryModal(true);
       setShowNewCategoryInput(false);
@@ -516,7 +506,6 @@ const DashboardScreen = () => {
 
   const finishImport = async (category: string | null) => {
     if (!importEntries) return;
-
     try {
       let cat = category;
       if (showNewCategoryInput && newCategoryName.trim()) {
@@ -524,12 +513,10 @@ const DashboardScreen = () => {
         setCategories(updated);
         cat = newCategoryName.trim();
       }
-
       const result = await commitImport(importEntries, cat);
       setVault(await loadVault());
       setShowImportCategoryModal(false);
       setImportEntries(null);
-
       Alert.alert(
         'Import complete',
         `Imported: ${result.imported}\nSkipped (duplicates): ${result.skipped}\nTotal in file: ${result.total}` +
@@ -555,12 +542,10 @@ const DashboardScreen = () => {
               const updated = data.map((e) =>
                 e.category === name ? { ...e, category: undefined } : e
               );
-              const { saveVault } = await import('../utils/vault');
               await saveVault(updated);
               const cats = await deleteCategory(name);
               setCategories(cats);
               setVault(updated);
-              setExpandedCategory(null);
               if (listFilter === name) setListFilter(null);
               if (formCategory === name) setFormCategory(null);
             } catch (e: any) {
@@ -572,9 +557,7 @@ const DashboardScreen = () => {
     );
   };
 
-  const handleLogout = () => {
-    router.replace('/login');
-  };
+  const handleLogout = () => router.replace('/login');
 
   const themeOptions: { key: ThemeMode; label: string; icon: string }[] = [
     { key: 'light', label: 'Light', icon: '☀️' },
@@ -593,9 +576,162 @@ const DashboardScreen = () => {
   const isFormCopied = copiedId === 'form';
   const formatLabel = exportFormat === 'json' ? 'JSON' : exportFormat === 'csv' ? 'CSV' : '';
   const filterLabel =
-    listFilter === FAVORITES_FILTER
-      ? 'Favorites'
-      : listFilter || 'All';
+    listFilter === FAVORITES_FILTER ? 'Favorites' : listFilter || 'All';
+
+  const renderPasswordItem = ({ item, drag, isActive }: RenderItemParams<PasswordEntry>) => {
+    const isVisible = visiblePasswords[item.id];
+    const isCopied = copiedId === item.id;
+    const isConfirmingDelete = confirmingDeleteId === item.id;
+    const isBeingEdited = editingId === item.id;
+    const isSelected = !!selectedIds[item.id];
+    const isFav = !!item.favorite;
+
+    return (
+      <ScaleDecorator>
+        <View
+          style={[
+            styles.entry,
+            {
+              backgroundColor: colors.card,
+              borderWidth: isBeingEdited || isSelected || isActive ? 1.5 : 0,
+              borderColor: isActive
+                ? colors.tint
+                : isBeingEdited
+                  ? colors.tint
+                  : isSelected
+                    ? colors.tint + '99'
+                    : 'transparent',
+              opacity: isActive ? 0.95 : 1,
+            },
+          ]}
+        >
+          <View style={styles.entryHeader}>
+            <TouchableOpacity
+              onLongPress={drag}
+              delayLongPress={180}
+              style={styles.dragHandle}
+              hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+            >
+              <Text style={[styles.dragHandleText, { color: colors.textSecondary }]}>⠿</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => toggleSelect(item.id)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ marginRight: 8 }}
+            >
+              <View
+                style={[
+                  styles.checkbox,
+                  {
+                    borderColor: colors.tint,
+                    backgroundColor: isSelected ? colors.tint : 'transparent',
+                  },
+                ]}
+              >
+                {isSelected ? <Text style={styles.checkmark}>✓</Text> : null}
+              </View>
+            </TouchableOpacity>
+
+            <Text style={[styles.site, { color: colors.text, flex: 1 }]}>{item.site}</Text>
+
+            <TouchableOpacity
+              onPress={() => toggleFavorite(item)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={styles.starBtn}
+            >
+              <Text style={[styles.starIcon, { color: isFav ? '#f5a623' : colors.textSecondary }]}>
+                {isFav ? '★' : '☆'}
+              </Text>
+            </TouchableOpacity>
+
+            {item.category ? (
+              <View style={[styles.catBadge, { backgroundColor: colors.tint + '22' }]}>
+                <Text style={[styles.catBadgeText, { color: colors.tint }]}>{item.category}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {item.url ? (
+            <>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>URL</Text>
+              <Text style={[styles.value, { color: colors.text }]} numberOfLines={1}>
+                {item.url}
+              </Text>
+            </>
+          ) : null}
+
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Username</Text>
+          <Text style={[styles.value, { color: colors.text }]}>{item.username}</Text>
+
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
+          <Text style={[styles.value, { color: colors.text }]}>
+            {isVisible ? item.password : '••••••••••••'}
+          </Text>
+
+          {item.notes ? (
+            <>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Note</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{item.notes}</Text>
+            </>
+          ) : null}
+
+          <View style={styles.actions}>
+            {!isConfirmingDelete ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                  onPress={() => togglePasswordVisibility(item.id)}
+                >
+                  <Text style={[styles.actionText, { color: colors.text }]}>
+                    {isVisible ? 'Hide' : 'Show'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.actionBtn,
+                    { backgroundColor: isCopied ? colors.successBackground : colors.overlay },
+                  ]}
+                  onPress={() => copyToClipboard(item.password, item.id)}
+                >
+                  <Text style={[styles.actionText, { color: isCopied ? colors.success : colors.text }]}>
+                    {isCopied ? 'Copied!' : 'Copy'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                  onPress={() => startEdit(item)}
+                >
+                  <Text style={[styles.actionText, { color: colors.tint }]}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
+                  onPress={() => setConfirmingDeleteId(item.id)}
+                >
+                  <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                  onPress={() => setConfirmingDeleteId(null)}
+                >
+                  <Text style={[styles.actionText, { color: colors.text }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
+                  onPress={() => confirmDelete(item.id)}
+                >
+                  <Text style={[styles.actionText, { color: colors.danger }]}>Remove</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </ScaleDecorator>
+    );
+  };
 
   const listHeader = (
     <>
@@ -659,58 +795,41 @@ const DashboardScreen = () => {
               </Text>
               <TouchableOpacity style={styles.exportOption} onPress={() => setExportFormat('json')}>
                 <Text style={[styles.exportOptionText, { color: colors.text }]}>JSON</Text>
-                <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
-                  Full backup for Kryptix
-                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.exportOption} onPress={() => setExportFormat('csv')}>
                 <Text style={[styles.exportOptionText, { color: colors.text }]}>CSV</Text>
-                <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
-                  Chrome / Firefox / Brave compatible
-                </Text>
               </TouchableOpacity>
             </>
           ) : (
             <>
               <View style={styles.exportStepHeader}>
-                <TouchableOpacity
-                  onPress={() => setExportFormat(null)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
+                <TouchableOpacity onPress={() => setExportFormat(null)}>
                   <Text style={[styles.exportBack, { color: colors.tint }]}>← Format</Text>
                 </TouchableOpacity>
                 <Text style={[styles.exportSectionTitleInline, { color: colors.textSecondary }]}>
                   Export as {formatLabel}
                 </Text>
               </View>
-
               <TouchableOpacity style={styles.exportOption} onPress={() => runExport(exportFormat, 'all')}>
-                <Text style={[styles.exportOptionText, { color: colors.text }]}>All passwords</Text>
-                <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
-                  Entire vault ({vault.length})
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>
+                  All ({vault.length})
                 </Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={styles.exportOption}
                 onPress={() => runExport(exportFormat, 'category')}
               >
-                <Text style={[styles.exportOptionText, { color: colors.text }]}>Current filter</Text>
-                <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>
                   {filterLabel} ({filteredVault.length})
                 </Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={[styles.exportOption, selectedCount === 0 && { opacity: 0.45 }]}
                 onPress={() => runExport(exportFormat, 'selected')}
                 disabled={selectedCount === 0}
               >
-                <Text style={[styles.exportOptionText, { color: colors.text }]}>Selected ones</Text>
-                <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
-                  {selectedCount > 0
-                    ? `${selectedCount} selected`
-                    : 'Select passwords with checkboxes first'}
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>
+                  Selected ({selectedCount})
                 </Text>
               </TouchableOpacity>
             </>
@@ -718,13 +837,11 @@ const DashboardScreen = () => {
         </View>
       )}
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.chipsRow}
-        contentContainerStyle={styles.chipsContent}
-        nestedScrollEnabled
-      >
+      <Text style={[styles.reorderHint, { color: colors.textSecondary }]}>
+        Long-press ⠿ or a category chip to reorder
+      </Text>
+
+      <View style={styles.chipsRow}>
         <TouchableOpacity
           style={[
             styles.chip,
@@ -733,10 +850,7 @@ const DashboardScreen = () => {
               borderColor: colors.border,
             },
           ]}
-          onPress={() => {
-            setListFilter(null);
-            setExpandedCategory(null);
-          }}
+          onPress={() => setListFilter(null)}
         >
           <Text style={[styles.chipText, { color: listFilter === null ? '#fff' : colors.text }]}>
             All
@@ -751,10 +865,7 @@ const DashboardScreen = () => {
               borderColor: colors.border,
             },
           ]}
-          onPress={() => {
-            setListFilter(FAVORITES_FILTER);
-            setExpandedCategory(null);
-          }}
+          onPress={() => setListFilter(FAVORITES_FILTER)}
         >
           <Text
             style={[
@@ -766,46 +877,50 @@ const DashboardScreen = () => {
           </Text>
         </TouchableOpacity>
 
-        {categories.map((cat) => {
-          const isExpanded = expandedCategory === cat;
-          const isActive = listFilter === cat;
-
-          return (
-            <View key={cat} style={styles.categoryChipRow}>
-              <TouchableOpacity
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: isActive ? colors.tint : colors.card,
-                    borderColor: isExpanded ? colors.danger : colors.border,
-                    borderWidth: isExpanded ? 2 : 1,
-                  },
-                ]}
-                onPress={() => {
-                  setListFilter(cat);
-                  if (expandedCategory && expandedCategory !== cat) {
-                    setExpandedCategory(null);
-                  }
-                }}
-                onLongPress={() => {
-                  setExpandedCategory((prev) => (prev === cat ? null : cat));
-                }}
-                delayLongPress={350}
-              >
-                <Text style={[styles.chipText, { color: isActive ? '#fff' : colors.text }]}>{cat}</Text>
-              </TouchableOpacity>
-
-              {isExpanded && (
-                <TouchableOpacity
-                  style={[styles.categoryDeleteButton, { backgroundColor: colors.dangerBackground }]}
-                  onPress={() => handleDeleteCategory(cat)}
-                >
-                  <Text style={[styles.categoryDeleteText, { color: colors.danger }]}>Delete</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        })}
+        <NestableDraggableFlatList
+          horizontal
+          data={categories}
+          keyExtractor={(item) => item}
+          onDragEnd={onCategoryDragEnd}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsContent}
+          activationDistance={8}
+          renderItem={({ item: cat, drag, isActive }: RenderItemParams<string>) => {
+            const isSelected = listFilter === cat;
+            return (
+              <ScaleDecorator>
+                <View style={styles.categoryChipRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: isSelected ? colors.tint : colors.card,
+                        borderColor: isActive ? colors.tint : colors.border,
+                        borderWidth: isActive ? 2 : 1,
+                        opacity: isActive ? 0.9 : 1,
+                      },
+                    ]}
+                    onPress={() => setListFilter(cat)}
+                    onLongPress={drag}
+                    delayLongPress={200}
+                  >
+                    <Text style={[styles.chipText, { color: isSelected ? '#fff' : colors.text }]}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                  {isSelected && (
+                    <TouchableOpacity
+                      style={[styles.categoryDeleteButton, { backgroundColor: colors.dangerBackground }]}
+                      onPress={() => handleDeleteCategory(cat)}
+                    >
+                      <Text style={[styles.categoryDeleteText, { color: colors.danger }]}>Delete</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </ScaleDecorator>
+            );
+          }}
+        />
 
         <TouchableOpacity
           style={[styles.chip, { backgroundColor: colors.card, borderColor: colors.tint, borderStyle: 'dashed' }]}
@@ -813,7 +928,7 @@ const DashboardScreen = () => {
         >
           <Text style={[styles.chipText, { color: colors.tint }]}>+ Add</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </View>
 
       {filteredVault.length > 0 && (
         <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -835,11 +950,7 @@ const DashboardScreen = () => {
           </TouchableOpacity>
 
           {selectedCount > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.selectBarActions}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectBarActions}>
               <TouchableOpacity onPress={clearSelection}>
                 <Text style={[styles.selectBarAction, { color: colors.textSecondary }]}>Clear</Text>
               </TouchableOpacity>
@@ -890,8 +1001,8 @@ const DashboardScreen = () => {
           placeholderTextColor={colors.textSecondary}
           value={username}
           onChangeText={setUsername}
-          style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
           autoCapitalize="none"
+          style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.text }]}
         />
 
         <View style={styles.passwordInputRow}>
@@ -990,154 +1101,14 @@ const DashboardScreen = () => {
         },
       ]}
     >
-      <FlatList
+      <NestableScrollContainer
         style={styles.list}
-        data={filteredVault}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        ListHeaderComponent={listHeader}
-        renderItem={({ item }) => {
-          const isVisible = visiblePasswords[item.id];
-          const isCopied = copiedId === item.id;
-          const isConfirmingDelete = confirmingDeleteId === item.id;
-          const isBeingEdited = editingId === item.id;
-          const isSelected = !!selectedIds[item.id];
-          const isFav = !!item.favorite;
+        showsVerticalScrollIndicator={false}
+      >
+        {listHeader}
 
-          return (
-            <View
-              style={[
-                styles.entry,
-                {
-                  backgroundColor: colors.card,
-                  borderWidth: isBeingEdited || isSelected ? 1.5 : 0,
-                  borderColor: isBeingEdited
-                    ? colors.tint
-                    : isSelected
-                      ? colors.tint + '99'
-                      : 'transparent',
-                },
-              ]}
-            >
-              <View style={styles.entryHeader}>
-                <TouchableOpacity
-                  onPress={() => toggleSelect(item.id)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={{ marginRight: 10 }}
-                >
-                  <View
-                    style={[
-                      styles.checkbox,
-                      {
-                        borderColor: colors.tint,
-                        backgroundColor: isSelected ? colors.tint : 'transparent',
-                      },
-                    ]}
-                  >
-                    {isSelected ? <Text style={styles.checkmark}>✓</Text> : null}
-                  </View>
-                </TouchableOpacity>
-
-                <Text style={[styles.site, { color: colors.text, flex: 1 }]}>{item.site}</Text>
-
-                <TouchableOpacity
-                  onPress={() => toggleFavorite(item)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={styles.starBtn}
-                >
-                  <Text style={[styles.starIcon, { color: isFav ? '#f5a623' : colors.textSecondary }]}>
-                    {isFav ? '★' : '☆'}
-                  </Text>
-                </TouchableOpacity>
-
-                {item.category ? (
-                  <View style={[styles.catBadge, { backgroundColor: colors.tint + '22' }]}>
-                    <Text style={[styles.catBadgeText, { color: colors.tint }]}>{item.category}</Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {item.url ? (
-                <>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>URL</Text>
-                  <Text style={[styles.value, { color: colors.text }]} numberOfLines={1}>
-                    {item.url}
-                  </Text>
-                </>
-              ) : null}
-
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Username</Text>
-              <Text style={[styles.value, { color: colors.text }]}>{item.username}</Text>
-
-              <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
-              <Text style={[styles.value, { color: colors.text }]}>
-                {isVisible ? item.password : '••••••••••••'}
-              </Text>
-
-              {item.notes ? (
-                <>
-                  <Text style={[styles.label, { color: colors.textSecondary }]}>Note</Text>
-                  <Text style={[styles.value, { color: colors.text }]}>{item.notes}</Text>
-                </>
-              ) : null}
-
-              <View style={styles.actions}>
-                {!isConfirmingDelete ? (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
-                      onPress={() => togglePasswordVisibility(item.id)}
-                    >
-                      <Text style={[styles.actionText, { color: colors.text }]}>
-                        {isVisible ? 'Hide' : 'Show'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.actionBtn,
-                        { backgroundColor: isCopied ? colors.successBackground : colors.overlay },
-                      ]}
-                      onPress={() => copyToClipboard(item.password, item.id)}
-                    >
-                      <Text style={[styles.actionText, { color: isCopied ? colors.success : colors.text }]}>
-                        {isCopied ? 'Copied!' : 'Copy'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
-                      onPress={() => startEdit(item)}
-                    >
-                      <Text style={[styles.actionText, { color: colors.tint }]}>Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
-                      onPress={() => setConfirmingDeleteId(item.id)}
-                    >
-                      <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
-                    </TouchableOpacity>
-                  </>
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
-                      onPress={() => setConfirmingDeleteId(null)}
-                    >
-                      <Text style={[styles.actionText, { color: colors.text }]}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
-                      onPress={() => confirmDelete(item.id)}
-                    >
-                      <Text style={[styles.actionText, { color: colors.danger }]}>Remove</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-            </View>
-          );
-        }}
-        ListEmptyComponent={
+        {filteredVault.length === 0 ? (
           <Text style={[styles.empty, { color: colors.textSecondary }]}>
             {listFilter === FAVORITES_FILTER
               ? 'No favorites yet.\nTap ★ on a password to star it.'
@@ -1145,10 +1116,18 @@ const DashboardScreen = () => {
                 ? `No passwords in "${listFilter}" yet.`
                 : 'No passwords saved yet.\nAdd your first one above!'}
           </Text>
-        }
-      />
+        ) : (
+          <NestableDraggableFlatList
+            data={filteredVault}
+            keyExtractor={(item) => item.id}
+            onDragEnd={onPasswordDragEnd}
+            activationDistance={10}
+            scrollEnabled={false}
+            renderItem={renderPasswordItem}
+          />
+        )}
+      </NestableScrollContainer>
 
-      {/* Bulk move to category */}
       <Modal visible={showBulkCategoryModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
@@ -1156,14 +1135,12 @@ const DashboardScreen = () => {
             <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
               Move {selectedCount} password{selectedCount === 1 ? '' : 's'} to…
             </Text>
-
             <TouchableOpacity
               style={[styles.modalOption, { borderColor: colors.border }]}
               onPress={() => applyBulkCategory(null)}
             >
               <Text style={[styles.modalOptionText, { color: colors.text }]}>Main list</Text>
             </TouchableOpacity>
-
             {categories.map((cat) => (
               <TouchableOpacity
                 key={cat}
@@ -1173,11 +1150,7 @@ const DashboardScreen = () => {
                 <Text style={[styles.modalOptionText, { color: colors.text }]}>{cat}</Text>
               </TouchableOpacity>
             ))}
-
-            <TouchableOpacity
-              style={{ marginTop: 16, alignItems: 'center' }}
-              onPress={() => setShowBulkCategoryModal(false)}
-            >
+            <TouchableOpacity style={{ marginTop: 16, alignItems: 'center' }} onPress={() => setShowBulkCategoryModal(false)}>
               <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -1188,9 +1161,6 @@ const DashboardScreen = () => {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>New category</Text>
-            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-              Give this folder a name (e.g. Brave, Work)
-            </Text>
             <TextInput
               placeholder="Category name"
               placeholderTextColor={colors.textSecondary}
@@ -1202,16 +1172,10 @@ const DashboardScreen = () => {
               ]}
               autoFocus
             />
-            <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: colors.tint, flex: 0 }]}
-              onPress={handleCreateCategory}
-            >
+            <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.tint, flex: 0 }]} onPress={handleCreateCategory}>
               <Text style={styles.addBtnText}>Create</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={{ marginTop: 14, alignItems: 'center' }}
-              onPress={() => setShowCreateCategoryModal(false)}
-            >
+            <TouchableOpacity style={{ marginTop: 14, alignItems: 'center' }} onPress={() => setShowCreateCategoryModal(false)}>
               <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -1225,14 +1189,9 @@ const DashboardScreen = () => {
             <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
               {importEntries?.length || 0} passwords found. Where should they go?
             </Text>
-
-            <TouchableOpacity
-              style={[styles.modalOption, { borderColor: colors.border }]}
-              onPress={() => finishImport(null)}
-            >
+            <TouchableOpacity style={[styles.modalOption, { borderColor: colors.border }]} onPress={() => finishImport(null)}>
               <Text style={[styles.modalOptionText, { color: colors.text }]}>Main list</Text>
             </TouchableOpacity>
-
             {categories.map((cat) => (
               <TouchableOpacity
                 key={cat}
@@ -1242,7 +1201,6 @@ const DashboardScreen = () => {
                 <Text style={[styles.modalOptionText, { color: colors.text }]}>{cat}</Text>
               </TouchableOpacity>
             ))}
-
             {!showNewCategoryInput ? (
               <TouchableOpacity
                 style={[styles.modalOption, { borderColor: colors.tint, borderStyle: 'dashed' }]}
@@ -1253,7 +1211,7 @@ const DashboardScreen = () => {
             ) : (
               <View style={{ marginTop: 8 }}>
                 <TextInput
-                  placeholder="Category name (e.g. Brave)"
+                  placeholder="Category name"
                   placeholderTextColor={colors.textSecondary}
                   value={newCategoryName}
                   onChangeText={setNewCategoryName}
@@ -1271,7 +1229,6 @@ const DashboardScreen = () => {
                 </TouchableOpacity>
               </View>
             )}
-
             <TouchableOpacity
               style={{ marginTop: 16, alignItems: 'center' }}
               onPress={() => {
@@ -1353,14 +1310,16 @@ const styles = StyleSheet.create({
   },
   exportOption: { paddingVertical: 12, paddingHorizontal: 16 },
   exportOptionText: { fontSize: 15, fontWeight: '600' },
-  exportOptionHint: { fontSize: 12, marginTop: 2 },
-  chipsRow: { marginBottom: 12 },
-  chipsContent: { gap: 8, alignItems: 'center', paddingVertical: 2 },
-  categoryChipRow: {
+  reorderHint: { fontSize: 12, marginBottom: 8 },
+  chipsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    marginBottom: 12,
   },
+  chipsContent: { gap: 8, alignItems: 'center', paddingVertical: 2 },
+  categoryChipRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginRight: 4 },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -1416,10 +1375,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     fontSize: 16,
   },
-  noteInput: {
-    minHeight: 64,
-    textAlignVertical: 'top',
-  },
+  noteInput: { minHeight: 64, textAlignVertical: 'top' },
   passwordInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1462,6 +1418,8 @@ const styles = StyleSheet.create({
   addBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   entry: { padding: 16, borderRadius: 12, marginBottom: 12 },
   entryHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 4 },
+  dragHandle: { paddingRight: 4, paddingVertical: 2 },
+  dragHandleText: { fontSize: 20, fontWeight: '700' },
   site: { fontSize: 18, fontWeight: 'bold' },
   starBtn: { paddingHorizontal: 4, paddingVertical: 2 },
   starIcon: { fontSize: 22, fontWeight: '700' },
@@ -1472,7 +1430,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', marginTop: 14, gap: 10, flexWrap: 'wrap' },
   actionBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 },
   actionText: { fontSize: 13, fontWeight: '600' },
-  empty: { textAlign: 'center', fontStyle: 'italic', marginTop: 40, lineHeight: 22 },
+  empty: { textAlign: 'center', fontStyle: 'italic', marginTop: 40, lineHeight: 22, marginBottom: 40 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
