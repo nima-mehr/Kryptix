@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import DraggableFlatList, {
+import {
   NestableDraggableFlatList,
   NestableScrollContainer,
   RenderItemParams,
@@ -103,6 +103,18 @@ const calculateStrength = (password: string): StrengthLevel => {
   };
 };
 
+const matchesSearch = (entry: PasswordEntry, query: string): boolean => {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    entry.site.toLowerCase().includes(q) ||
+    (entry.url || '').toLowerCase().includes(q) ||
+    entry.username.toLowerCase().includes(q) ||
+    (entry.notes || '').toLowerCase().includes(q) ||
+    (entry.category || '').toLowerCase().includes(q)
+  );
+};
+
 const DashboardScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -122,6 +134,8 @@ const DashboardScreen = () => {
   const [visiblePasswords, setVisiblePasswords] = useState<{ [key: string]: boolean }>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showFormPassword, setShowFormPassword] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -143,12 +157,13 @@ const DashboardScreen = () => {
   const activeCategory =
     listFilter && listFilter !== FAVORITES_FILTER ? listFilter : null;
 
-  // Preserve manual order — no auto-sort so drag-and-drop sticks
   const filteredVault = useMemo(() => {
-    if (listFilter === FAVORITES_FILTER) return vault.filter((e) => e.favorite);
-    if (listFilter) return vault.filter((e) => e.category === listFilter);
-    return vault;
-  }, [vault, listFilter]);
+    let list = vault;
+    if (listFilter === FAVORITES_FILTER) list = vault.filter((e) => e.favorite);
+    else if (listFilter) list = vault.filter((e) => e.category === listFilter);
+    if (searchQuery.trim()) list = list.filter((e) => matchesSearch(e, searchQuery));
+    return list;
+  }, [vault, listFilter, searchQuery]);
 
   const selectedCount = useMemo(
     () => Object.values(selectedIds).filter(Boolean).length,
@@ -197,6 +212,19 @@ const DashboardScreen = () => {
     setExportFormat(null);
   }, []);
 
+  const closeSearch = useCallback(() => {
+    setShowSearch(false);
+    setSearchQuery('');
+  }, []);
+
+  const toggleSearch = () => {
+    if (showSearch) closeSearch();
+    else {
+      setShowThemePicker(false);
+      setShowSearch(true);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
@@ -211,6 +239,10 @@ const DashboardScreen = () => {
         if (showImportCategoryModal) {
           setShowImportCategoryModal(false);
           setImportEntries(null);
+          return true;
+        }
+        if (showSearch) {
+          closeSearch();
           return true;
         }
         if (showThemePicker) {
@@ -243,6 +275,7 @@ const DashboardScreen = () => {
       showBulkCategoryModal,
       showCreateCategoryModal,
       showImportCategoryModal,
+      showSearch,
       showThemePicker,
       showExportMenu,
       exportFormat,
@@ -251,6 +284,7 @@ const DashboardScreen = () => {
       editingId,
       clearForm,
       closeExportMenu,
+      closeSearch,
     ])
   );
 
@@ -407,7 +441,9 @@ const DashboardScreen = () => {
   const onPasswordDragEnd = async ({ data }: { data: PasswordEntry[] }) => {
     try {
       const next =
-        listFilter === null ? data : applyFilteredReorder(vault, data);
+        listFilter === null && !searchQuery.trim()
+          ? data
+          : applyFilteredReorder(vault, data);
       await saveVault(next);
       setVault(next);
     } catch {
@@ -577,6 +613,7 @@ const DashboardScreen = () => {
   const formatLabel = exportFormat === 'json' ? 'JSON' : exportFormat === 'csv' ? 'CSV' : '';
   const filterLabel =
     listFilter === FAVORITES_FILTER ? 'Favorites' : listFilter || 'All';
+  const hasActiveSearch = searchQuery.trim().length > 0;
 
   const renderPasswordItem = ({ item, drag, isActive }: RenderItemParams<PasswordEntry>) => {
     const isVisible = visiblePasswords[item.id];
@@ -739,8 +776,23 @@ const DashboardScreen = () => {
         <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix Vault</Text>
         <View style={styles.headerRight}>
           <TouchableOpacity
+            style={[
+              styles.themeBtn,
+              {
+                backgroundColor: showSearch ? colors.tint + '22' : colors.card,
+                borderColor: showSearch ? colors.tint : colors.border,
+              },
+            ]}
+            onPress={toggleSearch}
+          >
+            <Text style={{ fontSize: 16 }}>🔍</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.themeBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => setShowThemePicker(!showThemePicker)}
+            onPress={() => {
+              setShowThemePicker(!showThemePicker);
+              if (!showThemePicker) setShowSearch(false);
+            }}
           >
             <Text style={{ fontSize: 16 }}>
               {mode === 'light' ? '☀️' : mode === 'dark' ? '🌙' : '⚙️'}
@@ -751,6 +803,32 @@ const DashboardScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {showSearch && (
+        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search name, url, username, note…"
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+          />
+          {hasActiveSearch ? (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ color: colors.textSecondary, fontWeight: '700', fontSize: 16 }}>✕</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={closeSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       {showThemePicker && (
         <View style={[styles.themePicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1048,7 +1126,6 @@ const DashboardScreen = () => {
         </View>
       </View>
 
-      {/* Select bar sits at bottom of main menu / top of saved passwords */}
       {filteredVault.length > 0 && (
         <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity onPress={toggleSelectAllFiltered} style={styles.selectBarLeft}>
@@ -1091,6 +1168,14 @@ const DashboardScreen = () => {
     </>
   );
 
+  const emptyMessage = hasActiveSearch
+    ? `No results for "${searchQuery.trim()}".`
+    : listFilter === FAVORITES_FILTER
+      ? 'No favorites yet.\nTap ★ on a password to star it.'
+      : listFilter
+        ? `No passwords in "${listFilter}" yet.`
+        : 'No passwords saved yet.\nAdd your first one above!';
+
   return (
     <View
       style={[
@@ -1110,13 +1195,7 @@ const DashboardScreen = () => {
         {listHeader}
 
         {filteredVault.length === 0 ? (
-          <Text style={[styles.empty, { color: colors.textSecondary }]}>
-            {listFilter === FAVORITES_FILTER
-              ? 'No favorites yet.\nTap ★ on a password to star it.'
-              : listFilter
-                ? `No passwords in "${listFilter}" yet.`
-                : 'No passwords saved yet.\nAdd your first one above!'}
-          </Text>
+          <Text style={[styles.empty, { color: colors.textSecondary }]}>{emptyMessage}</Text>
         ) : (
           <NestableDraggableFlatList
             data={filteredVault}
@@ -1266,6 +1345,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoutText: { fontWeight: '600', fontSize: 15 },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 4,
+  },
   themePicker: { borderRadius: 12, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
   themeOption: {
     flexDirection: 'row',
