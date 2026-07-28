@@ -60,6 +60,20 @@ export const updatePassword = async (
   await saveVault(vault);
 };
 
+export const updatePasswords = async (
+  ids: string[],
+  updates: Partial<Omit<PasswordEntry, 'id' | 'createdAt'>>
+): Promise<void> => {
+  if (ids.length === 0) return;
+  const idSet = new Set(ids);
+  const vault = await loadVault();
+  const now = Date.now();
+  const next = vault.map((e) =>
+    idSet.has(e.id) ? { ...e, ...updates, updatedAt: now } : e
+  );
+  await saveVault(next);
+};
+
 export const deletePassword = async (id: string): Promise<void> => {
   const vault = await loadVault();
   const filtered = vault.filter((e) => e.id !== id);
