@@ -26,7 +26,8 @@ export const addCategory = async (name: string): Promise<Category[]> => {
   const exists = categories.some((c) => c.toLowerCase() === trimmed.toLowerCase());
   if (exists) throw new Error('Category already exists');
 
-  const updated = [...categories, trimmed].sort((a, b) => a.localeCompare(b));
+  // Append — keep user order (no alphabetical sort)
+  const updated = [...categories, trimmed];
   await saveCategories(updated);
   return updated;
 };
@@ -36,4 +37,9 @@ export const deleteCategory = async (name: string): Promise<Category[]> => {
   const updated = categories.filter((c) => c !== name);
   await saveCategories(updated);
   return updated;
+};
+
+export const reorderCategories = async (ordered: Category[]): Promise<Category[]> => {
+  await saveCategories(ordered);
+  return ordered;
 };
