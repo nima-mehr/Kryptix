@@ -1,29 +1,29 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    Alert,
-    BackHandler,
-    Clipboard,
-    FlatList,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  BackHandler,
+  Clipboard,
+  FlatList,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeMode, useTheme } from '../context/ThemeContext';
 import { addCategory, deleteCategory, loadCategories } from '../utils/categories';
 import { commitImport, exportAsCSV, exportAsJSON, pickAndParseImportFile } from '../utils/importExport';
 import {
-    addPassword,
-    deletePassword,
-    deletePasswords,
-    loadVault,
-    PasswordEntry,
-    updatePassword,
+  addPassword,
+  deletePassword,
+  deletePasswords,
+  loadVault,
+  PasswordEntry,
+  updatePassword,
 } from '../utils/vault';
 
 type StrengthLevel = {
@@ -112,7 +112,6 @@ const DashboardScreen = () => {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
 
-  // Multi-select
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
 
   const [importEntries, setImportEntries] = useState<PasswordEntry[] | null>(null);
@@ -458,21 +457,36 @@ const DashboardScreen = () => {
     }
   };
 
-  const handleDeleteCategory = async (name: string) => {
-    try {
-      const data = await loadVault();
-      const updated = data.map((e) => (e.category === name ? { ...e, category: undefined } : e));
-      const { saveVault } = await import('../utils/vault');
-      await saveVault(updated);
-      const cats = await deleteCategory(name);
-      setCategories(cats);
-      setVault(updated);
-      setExpandedCategory(null);
-      if (selectedCategory === name) setSelectedCategory(null);
-      if (formCategory === name) setFormCategory(null);
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Could not delete category');
-    }
+  const handleDeleteCategory = (name: string) => {
+    Alert.alert(
+      'Delete category',
+      `Delete "${name}"? Passwords in it will move to the main list.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const data = await loadVault();
+              const updated = data.map((e) =>
+                e.category === name ? { ...e, category: undefined } : e
+              );
+              const { saveVault } = await import('../utils/vault');
+              await saveVault(updated);
+              const cats = await deleteCategory(name);
+              setCategories(cats);
+              setVault(updated);
+              setExpandedCategory(null);
+              if (selectedCategory === name) setSelectedCategory(null);
+              if (formCategory === name) setFormCategory(null);
+            } catch (e: any) {
+              Alert.alert('Error', e?.message || 'Could not delete category');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleLogout = () => {
@@ -572,7 +586,10 @@ const DashboardScreen = () => {
           ) : (
             <>
               <View style={styles.exportStepHeader}>
-                <TouchableOpacity onPress={() => setExportFormat(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity
+                  onPress={() => setExportFormat(null)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
                   <Text style={[styles.exportBack, { color: colors.tint }]}>← Format</Text>
                 </TouchableOpacity>
                 <Text style={[styles.exportSectionTitleInline, { color: colors.textSecondary }]}>
@@ -587,7 +604,10 @@ const DashboardScreen = () => {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.exportOption} onPress={() => runExport(exportFormat, 'category')}>
+              <TouchableOpacity
+                style={styles.exportOption}
+                onPress={() => runExport(exportFormat, 'category')}
+              >
                 <Text style={[styles.exportOptionText, { color: colors.text }]}>Current category</Text>
                 <Text style={[styles.exportOptionHint, { color: colors.textSecondary }]}>
                   {selectedCategory || 'All'} ({filteredVault.length})
@@ -615,7 +635,7 @@ const DashboardScreen = () => {
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.chipsRow}
-        contentContainerStyle={{ gap: 8 }}
+        contentContainerStyle={styles.chipsContent}
         nestedScrollEnabled
       >
         <TouchableOpacity
@@ -626,7 +646,10 @@ const DashboardScreen = () => {
               borderColor: colors.border,
             },
           ]}
-          onPress={() => setSelectedCategory(null)}
+          onPress={() => {
+            setSelectedCategory(null);
+            setExpandedCategory(null);
+          }}
         >
           <Text style={[styles.chipText, { color: selectedCategory === null ? '#fff' : colors.text }]}>
             All
@@ -635,30 +658,32 @@ const DashboardScreen = () => {
 
         {categories.map((cat) => {
           const isExpanded = expandedCategory === cat;
+          const isActive = selectedCategory === cat;
 
           return (
-            <View key={cat} style={styles.categoryChipContainer}>
+            <View key={cat} style={styles.categoryChipRow}>
               <TouchableOpacity
                 style={[
                   styles.chip,
                   {
-                    backgroundColor: selectedCategory === cat ? colors.tint : colors.card,
-                    borderColor: colors.border,
+                    backgroundColor: isActive ? colors.tint : colors.card,
+                    borderColor: isExpanded ? colors.danger : colors.border,
                     borderWidth: isExpanded ? 2 : 1,
                   },
                 ]}
                 onPress={() => {
                   setSelectedCategory(cat);
-                  if (isExpanded) {
+                  // Tap only filters — collapse delete if open on another chip
+                  if (expandedCategory && expandedCategory !== cat) {
                     setExpandedCategory(null);
-                  } else {
-                    setExpandedCategory(cat);
                   }
                 }}
+                onLongPress={() => {
+                  setExpandedCategory((prev) => (prev === cat ? null : cat));
+                }}
+                delayLongPress={350}
               >
-                <Text style={[styles.chipText, { color: selectedCategory === cat ? '#fff' : colors.text }]}>
-                  {cat}
-                </Text>
+                <Text style={[styles.chipText, { color: isActive ? '#fff' : colors.text }]}>{cat}</Text>
               </TouchableOpacity>
 
               {isExpanded && (
@@ -1158,8 +1183,13 @@ const styles = StyleSheet.create({
   exportOption: { paddingVertical: 12, paddingHorizontal: 16 },
   exportOptionText: { fontSize: 15, fontWeight: '600' },
   exportOptionHint: { fontSize: 12, marginTop: 2 },
-  chipsRow: { marginBottom: 12, maxHeight: 40 },
-  categoryChipContainer: { alignItems: 'flex-start', marginBottom: 6 },
+  chipsRow: { marginBottom: 12 },
+  chipsContent: { gap: 8, alignItems: 'center', paddingVertical: 2 },
+  categoryChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -1168,12 +1198,11 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 14, fontWeight: '600' },
   categoryDeleteButton: {
-    marginTop: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
-    minWidth: 72,
+    borderRadius: 16,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   categoryDeleteText: { fontSize: 12, fontWeight: '700' },
   selectBar: {
