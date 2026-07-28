@@ -141,6 +141,7 @@ const DashboardScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFormPassword, setShowFormPassword] = useState(false);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [confirmingDeleteCategory, setConfirmingDeleteCategory] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
@@ -257,6 +258,10 @@ const DashboardScreen = () => {
           else closeExportMenu();
           return true;
         }
+        if (confirmingDeleteCategory) {
+          setConfirmingDeleteCategory(null);
+          return true;
+        }
         if (selectedCount > 0) {
           setSelectedIds({});
           return true;
@@ -282,6 +287,7 @@ const DashboardScreen = () => {
       showThemePicker,
       showExportMenu,
       exportFormat,
+      confirmingDeleteCategory,
       selectedCount,
       confirmingDeleteId,
       editingId,
@@ -578,34 +584,22 @@ const DashboardScreen = () => {
     }
   };
 
-  const handleDeleteCategory = (name: string) => {
-    Alert.alert(
-      'Delete category',
-      `Delete "${name}"? Passwords in it will move to the main list.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const data = await loadVault();
-              const updated = data.map((e) =>
-                e.category === name ? { ...e, category: undefined } : e
-              );
-              await saveVault(updated);
-              const cats = await deleteCategory(name);
-              setCategories(cats);
-              setVault(updated);
-              if (listFilter === name) setListFilter(null);
-              if (formCategory === name) setFormCategory(null);
-            } catch (e: any) {
-              Alert.alert('Error', e?.message || 'Could not delete category');
-            }
-          },
-        },
-      ]
-    );
+  const confirmCategoryDelete = async (name: string) => {
+    try {
+      const data = await loadVault();
+      const updated = data.map((e) =>
+        e.category === name ? { ...e, category: undefined } : e
+      );
+      await saveVault(updated);
+      const cats = await deleteCategory(name);
+      setCategories(cats);
+      setVault(updated);
+      if (listFilter === name) setListFilter(null);
+      if (formCategory === name) setFormCategory(null);
+      setConfirmingDeleteCategory(null);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Could not delete category');
+    }
   };
 
   const handleLogout = () => router.replace('/login');
@@ -937,10 +931,6 @@ const DashboardScreen = () => {
         </View>
       )}
 
-      <Text style={[styles.reorderHint, { color: colors.textSecondary }]}>
-        Use ▲▼ on entries and ‹› on categories to reorder
-      </Text>
-
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -955,7 +945,10 @@ const DashboardScreen = () => {
               borderColor: colors.border,
             },
           ]}
-          onPress={() => setListFilter(null)}
+          onPress={() => {
+            setListFilter(null);
+            setConfirmingDeleteCategory(null);
+          }}
         >
           <Text style={[styles.chipText, { color: listFilter === null ? '#fff' : colors.text }]}>
             All
@@ -970,7 +963,10 @@ const DashboardScreen = () => {
               borderColor: colors.border,
             },
           ]}
-          onPress={() => setListFilter(FAVORITES_FILTER)}
+          onPress={() => {
+            setListFilter(FAVORITES_FILTER);
+            setConfirmingDeleteCategory(null);
+          }}
         >
           <Text
             style={[
@@ -984,6 +980,7 @@ const DashboardScreen = () => {
 
         {categories.map((cat, catIndex) => {
           const isSelected = listFilter === cat;
+          const isConfirmingDelete = confirmingDeleteCategory === cat;
           const canLeft = catIndex > 0;
           const canRight = catIndex < categories.length - 1;
           return (
@@ -1003,7 +1000,12 @@ const DashboardScreen = () => {
                     borderColor: colors.border,
                   },
                 ]}
-                onPress={() => setListFilter(cat)}
+                onPress={() => {
+                  setListFilter(cat);
+                  if (confirmingDeleteCategory !== cat) setConfirmingDeleteCategory(null);
+                }}
+                onLongPress={() => setConfirmingDeleteCategory(cat)}
+                delayLongPress={350}
               >
                 <Text style={[styles.chipText, { color: isSelected ? '#fff' : colors.text }]}>
                   {cat}
@@ -1016,13 +1018,21 @@ const DashboardScreen = () => {
               >
                 <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '700' }}>›</Text>
               </TouchableOpacity>
-              {isSelected && (
-                <TouchableOpacity
-                  style={[styles.categoryDeleteButton, { backgroundColor: colors.dangerBackground }]}
-                  onPress={() => handleDeleteCategory(cat)}
-                >
-                  <Text style={[styles.categoryDeleteText, { color: colors.danger }]}>Delete</Text>
-                </TouchableOpacity>
+              {isConfirmingDelete && (
+                <View style={styles.categoryConfirmRow}>
+                  <TouchableOpacity
+                    style={[styles.categoryConfirmBtn, { backgroundColor: colors.overlay }]}
+                    onPress={() => setConfirmingDeleteCategory(null)}
+                  >
+                    <Text style={[styles.categoryConfirmText, { color: colors.text }]}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.categoryConfirmBtn, { backgroundColor: colors.dangerBackground }]}
+                    onPress={() => confirmCategoryDelete(cat)}
+                  >
+                    <Text style={[styles.categoryConfirmText, { color: colors.danger }]}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           );
@@ -1424,7 +1434,6 @@ const styles = StyleSheet.create({
   },
   exportOption: { paddingVertical: 12, paddingHorizontal: 16 },
   exportOptionText: { fontSize: 15, fontWeight: '600' },
-  reorderHint: { fontSize: 12, marginBottom: 8 },
   chipsRow: { marginBottom: 12, maxHeight: 48 },
   chipsContent: { gap: 8, alignItems: 'center', paddingVertical: 2 },
   categoryChipRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
@@ -1436,15 +1445,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   chipText: { fontSize: 14, fontWeight: '600' },
-  categoryDeleteButton: {
+  categoryConfirmRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 4 },
+  categoryConfirmBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 4,
   },
-  categoryDeleteText: { fontSize: 12, fontWeight: '700' },
+  categoryConfirmText: { fontSize: 12, fontWeight: '700' },
   selectBar: {
     flexDirection: 'row',
     alignItems: 'center',
