@@ -44,6 +44,11 @@ type StrengthLevel = {
 type ExportFormat = 'json' | 'csv';
 type ListFilter = string | null;
 
+type DashboardProps = {
+  /** When true, parent (VaultHome) already shows title / theme / logout */
+  embedded?: boolean;
+};
+
 const FAVORITES_FILTER = '__favorites__';
 
 const calculateStrength = (password: string): StrengthLevel => {
@@ -118,7 +123,7 @@ const swap = <T,>(arr: T[], i: number, j: number): T[] => {
   return next;
 };
 
-const DashboardScreen = () => {
+const DashboardScreen = ({ embedded = false }: DashboardProps) => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, mode, setMode } = useTheme();
@@ -612,7 +617,15 @@ const DashboardScreen = () => {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 12 }]}>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+            paddingTop: embedded ? 0 : insets.top + 12,
+          },
+        ]}
+      >
         <Text style={{ color: colors.text }}>Loading your vault...</Text>
       </View>
     );
@@ -788,9 +801,40 @@ const DashboardScreen = () => {
 
   const listHeader = (
     <>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix Vault</Text>
-        <View style={styles.headerRight}>
+      {!embedded ? (
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix Vault</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={[
+                styles.themeBtn,
+                {
+                  backgroundColor: showSearch ? colors.tint + '22' : colors.card,
+                  borderColor: showSearch ? colors.tint : colors.border,
+                },
+              ]}
+              onPress={toggleSearch}
+            >
+              <Text style={{ fontSize: 16 }}>🔍</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.themeBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => {
+                setShowThemePicker(!showThemePicker);
+                if (!showThemePicker) setShowSearch(false);
+              }}
+            >
+              <Text style={{ fontSize: 16 }}>
+                {mode === 'light' ? '☀️' : mode === 'dark' ? '🌙' : '⚙️'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleLogout}>
+              <Text style={[styles.logoutText, { color: colors.tint }]}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.embeddedToolbar}>
           <TouchableOpacity
             style={[
               styles.themeBtn,
@@ -803,22 +847,8 @@ const DashboardScreen = () => {
           >
             <Text style={{ fontSize: 16 }}>🔍</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.themeBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => {
-              setShowThemePicker(!showThemePicker);
-              if (!showThemePicker) setShowSearch(false);
-            }}
-          >
-            <Text style={{ fontSize: 16 }}>
-              {mode === 'light' ? '☀️' : mode === 'dark' ? '🌙' : '⚙️'}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout}>
-            <Text style={[styles.logoutText, { color: colors.tint }]}>Logout</Text>
-          </TouchableOpacity>
         </View>
-      </View>
+      )}
 
       {showSearch && (
         <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -846,7 +876,7 @@ const DashboardScreen = () => {
         </View>
       )}
 
-      {showThemePicker && (
+      {!embedded && showThemePicker && (
         <View style={[styles.themePicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {themeOptions.map((opt) => (
             <TouchableOpacity
@@ -1220,8 +1250,8 @@ const DashboardScreen = () => {
         styles.container,
         {
           backgroundColor: colors.background,
-          paddingTop: insets.top + 12,
-          paddingBottom: insets.bottom + 8,
+          paddingTop: embedded ? 0 : insets.top + 12,
+          paddingBottom: embedded ? 0 : insets.bottom + 8,
         },
       ]}
     >
@@ -1363,6 +1393,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  embeddedToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 8,
   },
   title: { fontSize: 22, fontWeight: 'bold' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
