@@ -9,14 +9,18 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Kryptix uses Face ID to unlock your password vault quickly and securely."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": ["USE_BIOMETRIC", "USE_FINGERPRINT"]
     },
     "web": {
       "bundler": "metro",
@@ -34,7 +38,13 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Kryptix to use Face ID to unlock your vault."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
