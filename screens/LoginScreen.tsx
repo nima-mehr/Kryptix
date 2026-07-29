@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import {
   authenticateWithBiometrics,
@@ -203,14 +204,11 @@ const LoginScreen = () => {
             {isLoading ? (
               <ActivityIndicator color={colors.tint} size="small" />
             ) : (
-              <Text
-                style={[
-                  styles.bioIcon,
-                  { color: biometricEnabled ? colors.tint : colors.textSecondary },
-                ]}
-              >
-                指紋
-              </Text>
+              <Ionicons
+                name="finger-print"
+                size={28}
+                color={biometricEnabled ? colors.tint : colors.textSecondary}
+              />
             )}
           </TouchableOpacity>
         )}
@@ -272,10 +270,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  bioIcon: {
-    fontSize: 26,
-    fontWeight: '600',
   },
   info: {
     textAlign: 'center',
