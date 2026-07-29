@@ -1,3 +1,3 @@
-import DashboardScreen from '../screens/DashboardScreen';
+import VaultHomeScreen from '../screens/VaultHomeScreen';
 
-export default DashboardScreen;
+export default VaultHomeScreen;
