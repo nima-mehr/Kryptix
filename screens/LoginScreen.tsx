@@ -47,7 +47,6 @@ const LoginScreen = () => {
     setBiometricAvailable(status.available);
     setBiometricEnabledState(enabled);
     setHasStoredPassword(!!storedPassword);
-    return { status, enabled, storedPassword: !!storedPassword };
   }, []);
 
   useEffect(() => {
@@ -69,34 +68,28 @@ const LoginScreen = () => {
     };
   }, [refreshBiometricState]);
 
-  const tryBiometricUnlock = async () => {
+  const onBiometricPress = async () => {
     setIsLoading(true);
     try {
-      const result = await authenticateWithBiometrics();
-      if (result.success) {
-        unlock();
-        return;
-      }
-      if (!result.cancelled && result.error) {
-        Alert.alert('Unlock failed', result.error);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  /** Enable biometrics from the login screen (no popup — system prompt only). */
-  const setupBiometric = async () => {
-    setIsLoading(true);
-    try {
-      const result = await authenticateWithBiometrics(
-        `Confirm ${biometricLabel} to enable quick unlock`
-      );
-      if (result.success) {
-        await setBiometricEnabled(true);
-        setBiometricEnabledState(true);
-      } else if (!result.cancelled && result.error) {
-        Alert.alert('Could not enable', result.error);
+      if (biometricEnabled) {
+        const result = await authenticateWithBiometrics();
+        if (result.success) {
+          unlock();
+          return;
+        }
+        if (!result.cancelled && result.error) {
+          Alert.alert('Unlock failed', result.error);
+        }
+      } else {
+        const result = await authenticateWithBiometrics(
+          `Confirm ${biometricLabel} to enable quick unlock`
+        );
+        if (result.success) {
+          await setBiometricEnabled(true);
+          setBiometricEnabledState(true);
+        } else if (!result.cancelled && result.error) {
+          Alert.alert('Could not enable', result.error);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -133,10 +126,8 @@ const LoginScreen = () => {
     }
   };
 
-  const canUnlockWithBiometric =
-    biometricAvailable && biometricEnabled && hasStoredPassword;
-  const canSetupBiometric =
-    biometricAvailable && !biometricEnabled && hasStoredPassword;
+  const showBiometricButton =
+    !checkingBiometric && biometricAvailable && hasStoredPassword;
 
   return (
     <View
@@ -163,7 +154,7 @@ const LoginScreen = () => {
             color: colors.text,
           },
         ]}
-        placeholder="Enter Master Password"
+        placeholder="Master password"
         placeholderTextColor={colors.textSecondary}
         value={masterPassword}
         onChangeText={setMasterPassword}
@@ -173,67 +164,63 @@ const LoginScreen = () => {
         onSubmitEditing={handleLogin}
       />
 
-      <TouchableOpacity
-        style={[
-          styles.button,
-          { backgroundColor: colors.tint },
-          (isLoading || !masterPassword) && { opacity: 0.6 },
-        ]}
-        onPress={handleLogin}
-        disabled={isLoading || !masterPassword}
-      >
-        {isLoading && !canUnlockWithBiometric ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Unlock with password</Text>
+      <View style={styles.actionsRow}>
+        <TouchableOpacity
+          style={[
+            styles.button,
+            { backgroundColor: colors.tint },
+            (isLoading || !masterPassword) && { opacity: 0.6 },
+            showBiometricButton && { flex: 1 },
+          ]}
+          onPress={handleLogin}
+          disabled={isLoading || !masterPassword}
+        >
+          {isLoading && !showBiometricButton ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Unlock</Text>
+          )}
+        </TouchableOpacity>
+
+        {showBiometricButton && (
+          <TouchableOpacity
+            style={[
+              styles.bioButton,
+              {
+                borderColor: biometricEnabled ? colors.tint : colors.border,
+                backgroundColor: colors.card,
+              },
+              isLoading && { opacity: 0.6 },
+            ]}
+            onPress={onBiometricPress}
+            disabled={isLoading}
+            accessibilityLabel={
+              biometricEnabled
+                ? `Unlock with ${biometricLabel}`
+                : `Set up ${biometricLabel}`
+            }
+          >
+            {isLoading ? (
+              <ActivityIndicator color={colors.tint} size="small" />
+            ) : (
+              <Text
+                style={[
+                  styles.bioIcon,
+                  { color: biometricEnabled ? colors.tint : colors.textSecondary },
+                ]}
+              >
+                指紋
+              </Text>
+            )}
+          </TouchableOpacity>
         )}
-      </TouchableOpacity>
+      </View>
 
-      {!checkingBiometric && canUnlockWithBiometric && (
-        <TouchableOpacity
-          style={[
-            styles.methodButton,
-            { borderColor: colors.tint, backgroundColor: colors.card },
-            isLoading && { opacity: 0.6 },
-          ]}
-          onPress={tryBiometricUnlock}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color={colors.tint} />
-          ) : (
-            <Text style={[styles.methodButtonText, { color: colors.tint }]}>
-              Unlock with {biometricLabel}
-            </Text>
-          )}
-        </TouchableOpacity>
+      {!hasStoredPassword && !checkingBiometric && (
+        <Text style={[styles.info, { color: colors.textSecondary }]}>
+          First time? Enter a new password to create your vault.
+        </Text>
       )}
-
-      {!checkingBiometric && canSetupBiometric && (
-        <TouchableOpacity
-          style={[
-            styles.methodButton,
-            { borderColor: colors.border, backgroundColor: colors.card },
-            isLoading && { opacity: 0.6 },
-          ]}
-          onPress={setupBiometric}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color={colors.tint} />
-          ) : (
-            <Text style={[styles.methodButtonText, { color: colors.text }]}>
-              Set up {biometricLabel} unlock
-            </Text>
-          )}
-        </TouchableOpacity>
-      )}
-
-      <Text style={[styles.info, { color: colors.textSecondary }]}>
-        {hasStoredPassword
-          ? 'Choose a login method above.'
-          : 'First time? Enter a new password to create your vault.'}
-      </Text>
     </View>
   );
 };
@@ -262,25 +249,32 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 20,
   },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   button: {
     paddingVertical: 16,
     borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
-  methodButton: {
-    marginTop: 14,
-    paddingVertical: 16,
-    borderRadius: 10,
-    alignItems: 'center',
+  bioButton: {
+    width: 54,
+    height: 54,
+    borderRadius: 12,
     borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  methodButtonText: {
-    fontSize: 16,
+  bioIcon: {
+    fontSize: 26,
     fontWeight: '600',
   },
   info: {
