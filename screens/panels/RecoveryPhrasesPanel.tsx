@@ -1,36 +1,522 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Clipboard,
+  FlatList,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import type { RecoveryPhraseEntry } from '../../types/recovery';
+import {
+  addRecoveryPhrase,
+  countWords,
+  deleteRecoveryPhrase,
+  loadRecoveryVault,
+  updateRecoveryPhrase,
+} from '../../utils/recovery';
 
-/**
- * Placeholder for recovery-phrase vault entries.
- * Full CRUD will be added in a follow-up.
- */
 const RecoveryPhrasesPanel = () => {
   const { colors } = useTheme();
 
+  const [entries, setEntries] = useState<RecoveryPhraseEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [name, setName] = useState('');
+  const [phrase, setPhrase] = useState('');
+  const [notes, setNotes] = useState('');
+  const [showFormPhrase, setShowFormPhrase] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [visibleIds, setVisibleIds] = useState<Record<string, boolean>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+
+  const isEditing = editingId !== null;
+  const wordCount = useMemo(() => countWords(phrase), [phrase]);
+  const isFormCopied = copiedId === 'form';
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return entries;
+    return entries.filter(
+      (e) =>
+        e.name.toLowerCase().includes(q) ||
+        (e.notes || '').toLowerCase().includes(q) ||
+        e.phrase.toLowerCase().includes(q)
+    );
+  }, [entries, searchQuery]);
+
+  const refresh = useCallback(async () => {
+    setEntries(await loadRecoveryVault());
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      await refresh();
+      setLoading(false);
+    })();
+  }, [refresh]);
+
+  const clearForm = () => {
+    setName('');
+    setPhrase('');
+    setNotes('');
+    setShowFormPhrase(false);
+    setEditingId(null);
+  };
+
+  const startEdit = (entry: RecoveryPhraseEntry) => {
+    setEditingId(entry.id);
+    setName(entry.name);
+    setPhrase(entry.phrase);
+    setNotes(entry.notes || '');
+    setShowFormPhrase(false);
+    setConfirmingDeleteId(null);
+  };
+
+  const handleSave = async () => {
+    if (!name.trim() || !phrase.trim()) {
+      Alert.alert('Error', 'Please enter a name and the recovery phrase');
+      return;
+    }
+
+    try {
+      const payload = {
+        name: name.trim(),
+        phrase: phrase.trim(),
+        notes: notes.trim() || undefined,
+      };
+
+      if (isEditing && editingId) {
+        await updateRecoveryPhrase(editingId, payload);
+      } else {
+        await addRecoveryPhrase(payload);
+      }
+      await refresh();
+      clearForm();
+    } catch {
+      Alert.alert('Error', isEditing ? 'Failed to update phrase' : 'Failed to save phrase');
+    }
+  };
+
+  const confirmDelete = async (id: string) => {
+    try {
+      await deleteRecoveryPhrase(id);
+      await refresh();
+      setConfirmingDeleteId(null);
+      if (editingId === id) clearForm();
+    } catch {
+      Alert.alert('Error', 'Could not delete phrase');
+    }
+  };
+
+  const toggleFavorite = async (entry: RecoveryPhraseEntry) => {
+    try {
+      await updateRecoveryPhrase(entry.id, { favorite: !entry.favorite });
+      await refresh();
+    } catch {
+      Alert.alert('Error', 'Could not update favorite');
+    }
+  };
+
+  const toggleVisible = (id: string) => {
+    setVisibleIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const copyText = (text: string, id: string = 'form') => {
+    if (!text) return;
+    Clipboard.setString(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const maskPhrase = (p: string) => {
+    const words = p.trim().split(/\s+/).filter(Boolean);
+    if (words.length <= 2) return '••••••••';
+    return words.map(() => '••••').join(' ');
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text style={{ color: colors.textSecondary }}>Loading recovery phrases…</Text>
+      </View>
+    );
+  }
+
+  const listHeader = (
+    <>
+      <View style={styles.toolbar}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Recovery phrases ({entries.length})
+        </Text>
+        <TouchableOpacity
+          style={[
+            styles.iconBtn,
+            {
+              backgroundColor: showSearch ? colors.tint + '22' : colors.card,
+              borderColor: showSearch ? colors.tint : colors.border,
+            },
+          ]}
+          onPress={() => {
+            if (showSearch) {
+              setShowSearch(false);
+              setSearchQuery('');
+            } else setShowSearch(true);
+          }}
+        >
+          <Text style={{ fontSize: 15 }}>🔍</Text>
+        </TouchableOpacity>
+      </View>
+
+      {showSearch && (
+        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search name, notes, phrase…"
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity
+            onPress={() => {
+              setShowSearch(false);
+              setSearchQuery('');
+            }}
+          >
+            <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <View style={[styles.form, { backgroundColor: colors.card }]}>
+        {isEditing && (
+          <View style={styles.editingBanner}>
+            <Text style={[styles.editingText, { color: colors.tint }]}>Editing phrase</Text>
+            <TouchableOpacity onPress={clearForm}>
+              <Text style={{ color: colors.textSecondary, fontWeight: '500' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <TextInput
+          placeholder="Name (e.g. MetaMask, Ledger)"
+          placeholderTextColor={colors.textSecondary}
+          value={name}
+          onChangeText={setName}
+          style={[
+            styles.input,
+            {
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.border,
+              color: colors.text,
+            },
+          ]}
+        />
+
+        <TextInput
+          placeholder="Recovery phrase (12 or 24 words)"
+          placeholderTextColor={colors.textSecondary}
+          value={phrase}
+          onChangeText={setPhrase}
+          multiline
+          secureTextEntry={!showFormPhrase}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={[
+            styles.input,
+            styles.phraseInput,
+            {
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.border,
+              color: colors.text,
+            },
+          ]}
+        />
+
+        <View style={styles.phraseMetaRow}>
+          <Text style={[styles.wordCount, { color: colors.textSecondary }]}>
+            {phrase.trim() ? `${wordCount} word${wordCount === 1 ? '' : 's'}` : ' '}
+          </Text>
+          <View style={styles.phraseActions}>
+            <TouchableOpacity
+              style={[styles.smallBtn, { backgroundColor: colors.tint + '18' }, !phrase && { opacity: 0.4 }]}
+              onPress={() => setShowFormPhrase((v) => !v)}
+              disabled={!phrase}
+            >
+              <Text style={[styles.smallBtnText, { color: colors.tint }]}>
+                {showFormPhrase ? 'Hide' : 'Show'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.smallBtn,
+                {
+                  backgroundColor: isFormCopied ? colors.successBackground : colors.tint + '18',
+                },
+                !phrase && { opacity: 0.4 },
+              ]}
+              onPress={() => copyText(phrase, 'form')}
+              disabled={!phrase}
+            >
+              <Text
+                style={[
+                  styles.smallBtnText,
+                  { color: isFormCopied ? colors.success : colors.tint },
+                ]}
+              >
+                {isFormCopied ? 'Copied!' : 'Copy'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <TextInput
+          placeholder="Note (optional)"
+          placeholderTextColor={colors.textSecondary}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          style={[
+            styles.input,
+            styles.noteInput,
+            {
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.border,
+              color: colors.text,
+            },
+          ]}
+        />
+
+        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.tint }]} onPress={handleSave}>
+          <Text style={styles.saveBtnText}>{isEditing ? 'Update phrase' : 'Add phrase'}</Text>
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+
+  const renderItem = ({ item }: { item: RecoveryPhraseEntry }) => {
+    const isVisible = !!visibleIds[item.id];
+    const isCopied = copiedId === item.id;
+    const isConfirming = confirmingDeleteId === item.id;
+    const isBeingEdited = editingId === item.id;
+    const words = countWords(item.phrase);
+
+    return (
+      <View
+        style={[
+          styles.entry,
+          {
+            backgroundColor: colors.card,
+            borderWidth: isBeingEdited ? 1.5 : 0,
+            borderColor: isBeingEdited ? colors.tint : 'transparent',
+          },
+        ]}
+      >
+        <View style={styles.entryHeader}>
+          <Text style={[styles.entryName, { color: colors.text, flex: 1 }]}>{item.name}</Text>
+          <TouchableOpacity onPress={() => toggleFavorite(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={{ fontSize: 20, color: item.favorite ? '#f5a623' : colors.textSecondary }}>
+              {item.favorite ? '★' : '☆'}
+            </Text>
+          </TouchableOpacity>
+          <View style={[styles.badge, { backgroundColor: colors.tint + '22' }]}>
+            <Text style={[styles.badgeText, { color: colors.tint }]}>{words}w</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.label, { color: colors.textSecondary }]}>Phrase</Text>
+        <Text style={[styles.phraseValue, { color: colors.text }]}>
+          {isVisible ? item.phrase : maskPhrase(item.phrase)}
+        </Text>
+
+        {item.notes ? (
+          <>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Note</Text>
+            <Text style={[styles.value, { color: colors.text }]}>{item.notes}</Text>
+          </>
+        ) : null}
+
+        <View style={styles.actions}>
+          {!isConfirming ? (
+            <>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                onPress={() => toggleVisible(item.id)}
+              >
+                <Text style={[styles.actionText, { color: colors.text }]}>
+                  {isVisible ? 'Hide' : 'Show'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.actionBtn,
+                  { backgroundColor: isCopied ? colors.successBackground : colors.overlay },
+                ]}
+                onPress={() => copyText(item.phrase, item.id)}
+              >
+                <Text style={[styles.actionText, { color: isCopied ? colors.success : colors.text }]}>
+                  {isCopied ? 'Copied!' : 'Copy'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                onPress={() => startEdit(item)}
+              >
+                <Text style={[styles.actionText, { color: colors.tint }]}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
+                onPress={() => setConfirmingDeleteId(item.id)}
+              >
+                <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
+                onPress={() => setConfirmingDeleteId(null)}
+              >
+                <Text style={[styles.actionText, { color: colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
+                onPress={() => confirmDelete(item.id)}
+              >
+                <Text style={[styles.actionText, { color: colors.danger }]}>Remove</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const emptyMessage = searchQuery.trim()
+    ? `No results for "${searchQuery.trim()}".`
+    : 'No recovery phrases yet.\nAdd your first seed phrase above.';
+
   return (
     <View style={styles.container}>
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Recovery phrases</Text>
-        <Text style={[styles.body, { color: colors.textSecondary }]}>
-          Store seed phrases and recovery keys here. This section is a placeholder — we will add
-          add / edit / list next.
-        </Text>
-      </View>
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={listHeader}
+        renderItem={renderItem}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <Text style={[styles.empty, { color: colors.textSecondary }]}>{emptyMessage}</Text>
+        }
+        contentContainerStyle={{ paddingBottom: 24 }}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 4 },
-  card: {
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 20,
+  container: { flex: 1 },
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 10 },
-  body: { fontSize: 14, lineHeight: 21 },
+  sectionTitle: { fontSize: 17, fontWeight: '700' },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+    gap: 10,
+  },
+  searchInput: { flex: 1, fontSize: 15, paddingVertical: 4 },
+  form: { padding: 16, borderRadius: 12, marginBottom: 16 },
+  editingBanner: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  editingText: { fontSize: 14, fontWeight: '600' },
+  input: {
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 12,
+    borderRadius: 10,
+    fontSize: 16,
+  },
+  phraseInput: { minHeight: 88, textAlignVertical: 'top' },
+  noteInput: { minHeight: 56, textAlignVertical: 'top' },
+  phraseMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    marginTop: -4,
+  },
+  wordCount: { fontSize: 13, fontWeight: '600' },
+  phraseActions: { flexDirection: 'row', gap: 8 },
+  smallBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  smallBtnText: { fontWeight: '600', fontSize: 13 },
+  saveBtn: {
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  saveBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  entry: { padding: 16, borderRadius: 12, marginBottom: 12 },
+  entryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 6,
+  },
+  entryName: { fontSize: 17, fontWeight: '700' },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  badgeText: { fontSize: 11, fontWeight: '700' },
+  label: { fontSize: 12, marginTop: 6, marginBottom: 2 },
+  value: { fontSize: 15 },
+  phraseValue: { fontSize: 14, lineHeight: 22 },
+  actions: { flexDirection: 'row', marginTop: 14, gap: 10, flexWrap: 'wrap' },
+  actionBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 },
+  actionText: { fontSize: 13, fontWeight: '600' },
+  empty: {
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: 32,
+    lineHeight: 22,
+    marginBottom: 24,
+  },
 });
 
 export default RecoveryPhrasesPanel;
