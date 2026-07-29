@@ -9,9 +9,8 @@ import HardcodedPasswordPanel from './panels/HardcodedPasswordPanel';
 import RecoveryPhrasesPanel from './panels/RecoveryPhrasesPanel';
 
 /**
- * Top-level vault shell: shared header + section tabs.
- * Passwords reuses the existing DashboardScreen UI.
- * Recovery phrases and Hardcoded password are placeholders for now.
+ * Top-level vault shell: shared header + section tabs for every section.
+ * Layout stays fixed when switching between Passwords / Recovery / Hardcoded.
  */
 const VaultHomeScreen = () => {
   const router = useRouter();
@@ -25,29 +24,6 @@ const VaultHomeScreen = () => {
     { key: 'dark', label: 'Dark', icon: '🌙' },
     { key: 'system', label: 'System', icon: '⚙️' },
   ];
-
-  // Full passwords UI already has its own header / theme / logout.
-  if (section === 'passwords') {
-    return (
-      <View style={styles.flex}>
-        <View
-          style={[
-            styles.tabsOnlyBar,
-            {
-              backgroundColor: colors.background,
-              paddingTop: insets.top + 8,
-              paddingHorizontal: 20,
-            },
-          ]}
-        >
-          <VaultSectionTabs section={section} onChange={setSection} />
-        </View>
-        <View style={styles.flex}>
-          <DashboardScreen />
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View
@@ -100,8 +76,14 @@ const VaultHomeScreen = () => {
         <VaultSectionTabs section={section} onChange={setSection} />
       </View>
 
-      <View style={[styles.flex, styles.pad]}>
-        {section === 'recovery' ? <RecoveryPhrasesPanel /> : <HardcodedPasswordPanel />}
+      <View style={[styles.flex, section !== 'passwords' && styles.pad]}>
+        {section === 'passwords' ? (
+          <DashboardScreen embedded />
+        ) : section === 'recovery' ? (
+          <RecoveryPhrasesPanel />
+        ) : (
+          <HardcodedPasswordPanel />
+        )}
       </View>
     </View>
   );
@@ -110,7 +92,6 @@ const VaultHomeScreen = () => {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   pad: { paddingHorizontal: 20 },
-  tabsOnlyBar: { zIndex: 2 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
