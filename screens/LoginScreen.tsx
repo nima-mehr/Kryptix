@@ -28,44 +28,48 @@ const LoginScreen = () => {
   const [masterPassword, setMasterPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
-  const [canUseBiometric, setCanUseBiometric] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabledState] = useState(false);
+  const [hasStoredPassword, setHasStoredPassword] = useState(false);
   const [checkingBiometric, setCheckingBiometric] = useState(true);
 
   const unlock = useCallback(() => {
     router.replace('/dashboard');
   }, [router]);
 
-  const offerEnableBiometrics = useCallback(
-    async (label: string) => {
-      const status = await getBiometricStatus();
-      if (!status.available) return;
+  const refreshBiometricState = useCallback(async () => {
+    const [status, enabled, storedPassword] = await Promise.all([
+      getBiometricStatus(),
+      isBiometricEnabled(),
+      SecureStore.getItemAsync(MASTER_PASSWORD_KEY),
+    ]);
+    setBiometricLabel(status.label);
+    setBiometricAvailable(status.available);
+    setBiometricEnabledState(enabled);
+    setHasStoredPassword(!!storedPassword);
+    return { status, enabled, storedPassword: !!storedPassword };
+  }, []);
 
-      Alert.alert(
-        `Enable ${label}?`,
-        `Use ${label} to unlock your vault next time instead of typing your master password.`,
-        [
-          { text: 'Not now', style: 'cancel' },
-          {
-            text: 'Enable',
-            onPress: async () => {
-              const result = await authenticateWithBiometrics(
-                `Confirm ${label} to enable quick unlock`
-              );
-              if (result.success) {
-                await setBiometricEnabled(true);
-                Alert.alert('Enabled', `${label} unlock is on.`);
-              } else if (!result.cancelled && result.error) {
-                Alert.alert('Could not enable', result.error);
-              }
-            },
-          },
-        ]
-      );
-    },
-    []
-  );
+  useEffect(() => {
+    let cancelled = false;
 
-  const tryBiometricUnlock = useCallback(async () => {
+    const init = async () => {
+      try {
+        await refreshBiometricState();
+      } catch (e) {
+        console.error('Biometric init error:', e);
+      } finally {
+        if (!cancelled) setCheckingBiometric(false);
+      }
+    };
+
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshBiometricState]);
+
+  const tryBiometricUnlock = async () => {
     setIsLoading(true);
     try {
       const result = await authenticateWithBiometrics();
@@ -79,46 +83,25 @@ const LoginScreen = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [unlock]);
+  };
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const init = async () => {
-      try {
-        const [status, enabled, storedPassword] = await Promise.all([
-          getBiometricStatus(),
-          isBiometricEnabled(),
-          SecureStore.getItemAsync(MASTER_PASSWORD_KEY),
-        ]);
-
-        if (cancelled) return;
-
-        setBiometricLabel(status.label);
-        const ready = status.available && enabled && !!storedPassword;
-        setCanUseBiometric(ready);
-
-        if (ready) {
-          // Auto-prompt once when the screen opens
-          const result = await authenticateWithBiometrics();
-          if (cancelled) return;
-          if (result.success) {
-            unlock();
-            return;
-          }
-        }
-      } catch (e) {
-        console.error('Biometric init error:', e);
-      } finally {
-        if (!cancelled) setCheckingBiometric(false);
+  /** Enable biometrics from the login screen (no popup — system prompt only). */
+  const setupBiometric = async () => {
+    setIsLoading(true);
+    try {
+      const result = await authenticateWithBiometrics(
+        `Confirm ${biometricLabel} to enable quick unlock`
+      );
+      if (result.success) {
+        await setBiometricEnabled(true);
+        setBiometricEnabledState(true);
+      } else if (!result.cancelled && result.error) {
+        Alert.alert('Could not enable', result.error);
       }
-    };
-
-    init();
-    return () => {
-      cancelled = true;
-    };
-  }, [unlock]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = async () => {
     if (!masterPassword) {
@@ -133,22 +116,13 @@ const LoginScreen = () => {
 
       if (storedPassword) {
         if (masterPassword === storedPassword) {
-          const status = await getBiometricStatus();
-          const enabled = await isBiometricEnabled();
-          if (status.available && !enabled) {
-            await offerEnableBiometrics(status.label);
-          }
           unlock();
         } else {
           Alert.alert('Error', 'Incorrect master password');
         }
       } else {
         await SecureStore.setItemAsync(MASTER_PASSWORD_KEY, masterPassword);
-        Alert.alert('Success', 'Master password created!');
-        const status = await getBiometricStatus();
-        if (status.available) {
-          await offerEnableBiometrics(status.label);
-        }
+        setHasStoredPassword(true);
         unlock();
       }
     } catch (error) {
@@ -158,6 +132,11 @@ const LoginScreen = () => {
       setIsLoading(false);
     }
   };
+
+  const canUnlockWithBiometric =
+    biometricAvailable && biometricEnabled && hasStoredPassword;
+  const canSetupBiometric =
+    biometricAvailable && !biometricEnabled && hasStoredPassword;
 
   return (
     <View
@@ -189,7 +168,7 @@ const LoginScreen = () => {
         value={masterPassword}
         onChangeText={setMasterPassword}
         secureTextEntry
-        autoFocus={!canUseBiometric && !checkingBiometric}
+        autoFocus={!checkingBiometric}
         editable={!isLoading}
         onSubmitEditing={handleLogin}
       />
@@ -203,17 +182,17 @@ const LoginScreen = () => {
         onPress={handleLogin}
         disabled={isLoading || !masterPassword}
       >
-        {isLoading && !canUseBiometric ? (
+        {isLoading && !canUnlockWithBiometric ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>Unlock Vault</Text>
+          <Text style={styles.buttonText}>Unlock with password</Text>
         )}
       </TouchableOpacity>
 
-      {canUseBiometric && (
+      {!checkingBiometric && canUnlockWithBiometric && (
         <TouchableOpacity
           style={[
-            styles.biometricButton,
+            styles.methodButton,
             { borderColor: colors.tint, backgroundColor: colors.card },
             isLoading && { opacity: 0.6 },
           ]}
@@ -223,15 +202,37 @@ const LoginScreen = () => {
           {isLoading ? (
             <ActivityIndicator color={colors.tint} />
           ) : (
-            <Text style={[styles.biometricButtonText, { color: colors.tint }]}>
+            <Text style={[styles.methodButtonText, { color: colors.tint }]}>
               Unlock with {biometricLabel}
             </Text>
           )}
         </TouchableOpacity>
       )}
 
+      {!checkingBiometric && canSetupBiometric && (
+        <TouchableOpacity
+          style={[
+            styles.methodButton,
+            { borderColor: colors.border, backgroundColor: colors.card },
+            isLoading && { opacity: 0.6 },
+          ]}
+          onPress={setupBiometric}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color={colors.tint} />
+          ) : (
+            <Text style={[styles.methodButtonText, { color: colors.text }]}>
+              Set up {biometricLabel} unlock
+            </Text>
+          )}
+        </TouchableOpacity>
+      )}
+
       <Text style={[styles.info, { color: colors.textSecondary }]}>
-        First time? Just enter a new password to create your vault.
+        {hasStoredPassword
+          ? 'Choose a login method above.'
+          : 'First time? Enter a new password to create your vault.'}
       </Text>
     </View>
   );
@@ -271,14 +272,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  biometricButton: {
+  methodButton: {
     marginTop: 14,
     paddingVertical: 16,
     borderRadius: 10,
     alignItems: 'center',
     borderWidth: 1.5,
   },
-  biometricButtonText: {
+  methodButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },
