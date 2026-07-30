@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Alert, I18nManager } from 'react-native';
+import { I18nManager } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import {
   AppLanguage,
@@ -10,6 +10,7 @@ import {
 
 type LanguageContextType = {
   language: AppLanguage;
+  /** Always false — layout positions stay LTR for both languages */
   isRTL: boolean;
   setLanguage: (lang: AppLanguage) => Promise<void>;
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
@@ -19,6 +20,18 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 const LANGUAGE_KEY = 'kryptix_language';
 
+/** Keep app layout LTR so controls never mirror when language changes. */
+function ensureLtrLayout() {
+  try {
+    I18nManager.allowRTL(false);
+    if (I18nManager.isRTL) {
+      I18nManager.forceRTL(false);
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export const LanguageProvider = ({ children }: { children: React.ReactNode }) => {
   const [language, setLanguageState] = useState<AppLanguage>('en');
   const [loaded, setLoaded] = useState(false);
@@ -26,14 +39,10 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
   useEffect(() => {
     const load = async () => {
       try {
+        ensureLtrLayout();
         const saved = await SecureStore.getItemAsync(LANGUAGE_KEY);
         if (saved === 'en' || saved === 'fa') {
           setLanguageState(saved);
-          const wantRtl = saved === 'fa';
-          if (I18nManager.isRTL !== wantRtl) {
-            I18nManager.allowRTL(wantRtl);
-            I18nManager.forceRTL(wantRtl);
-          }
         }
       } catch {
         // keep default
@@ -46,33 +55,20 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
 
   const setLanguage = useCallback(async (lang: AppLanguage) => {
     setLanguageState(lang);
+    ensureLtrLayout();
     try {
       await SecureStore.setItemAsync(LANGUAGE_KEY, lang);
     } catch {
       // ignore
     }
-
-    const wantRtl = lang === 'fa';
-    const rtlChanged = I18nManager.isRTL !== wantRtl;
-    if (rtlChanged) {
-      I18nManager.allowRTL(wantRtl);
-      I18nManager.forceRTL(wantRtl);
-    }
-
-    const dict = translations[lang];
-    if (rtlChanged) {
-      Alert.alert(dict.languageChanged, dict.languageChangedBody, [
-        { text: dict.ok },
-      ]);
-    }
   }, []);
 
   const t = useCallback(
     (key: TranslationKey, vars?: Record<string, string | number>) => {
-      let str = translations[language][key] ?? translations.en[key] ?? key;
+      let str = translations[language][key] ?? translations.en[key] ?? String(key);
       if (vars) {
         Object.entries(vars).forEach(([k, v]) => {
-          str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+          str = str.split(`{${k}}`).join(String(v));
         });
       }
       return str;
@@ -80,11 +76,9 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
     [language]
   );
 
-  const isRTL = language === 'fa';
-
   const value = useMemo(
-    () => ({ language, isRTL, setLanguage, t }),
-    [language, isRTL, setLanguage, t]
+    () => ({ language, isRTL: false, setLanguage, t }),
+    [language, setLanguage, t]
   );
 
   if (!loaded) {
