@@ -10,8 +10,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withDelay,
-  withSequence,
   withRepeat,
   Easing,
   runOnJS,
@@ -21,9 +19,17 @@ import Animated, {
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
+// Large intro sphere
 const INTRO_RADIUS = Math.min(SCREEN_W, SCREEN_H) * 0.28;
-const LOGO_RADIUS = 22;
+// Final logo diameter matches KryptixSphereLogo default (~44)
+const LOGO_SIZE = 44;
+const LOGO_RADIUS = LOGO_SIZE * 0.42;
 const LOGO_SCALE = LOGO_RADIUS / INTRO_RADIUS;
+
+// Glyph size at logo scale should match vault logo (~size * 0.22)
+const LOGO_GLYPH = Math.max(7, LOGO_SIZE * 0.22);
+// Pre-scale so after LOGO_SCALE transform the glyphs stay readable
+const INTRO_GLYPH = LOGO_GLYPH / LOGO_SCALE;
 
 const ANIM_DURATION = 1100;
 const MOVE_DURATION = 520;
@@ -31,6 +37,11 @@ const SETTLE_HOLD = 180;
 
 const GLYPHS =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*+=?αβγδΩΣπμλθξζφψχ'.split('');
+
+const COLORS = ['#00f0ff', '#4da3ff', '#a78bfa', '#67e8f9', '#c084fc', '#22d3ee'];
+
+// Same density as vault logo for visual consistency
+const PARTICLE_COUNT = 28;
 
 type Particle = {
   id: number;
@@ -43,9 +54,6 @@ type Particle = {
   color: string;
   rotate: number;
 };
-
-const PARTICLE_COUNT = 56;
-const COLORS = ['#00f0ff', '#4da3ff', '#a78bfa', '#67e8f9', '#c084fc', '#22d3ee'];
 
 function createParticles(): Particle[] {
   const particles: Particle[] = [];
@@ -65,12 +73,13 @@ function createParticles(): Particle[] {
 
     particles.push({
       id: i,
-      char: GLYPHS[Math.floor(Math.random() * GLYPHS.length)],
+      char: GLYPHS[i % GLYPHS.length],
       targetX,
       targetY,
       startX,
       startY,
-      size: 10 + Math.floor(Math.random() * 8),
+      // Fixed size so after logo scale it matches KryptixSphereLogo
+      size: INTRO_GLYPH,
       color: COLORS[i % COLORS.length],
       rotate: (Math.random() - 0.5) * 36,
     });
@@ -99,7 +108,8 @@ function Shard({ particle, progress, spin }: ShardProps) {
     const baseOpacity = interpolate(p, [0, 0.12, 1], [0, 1, 0.95]);
     const opacity = baseOpacity * (0.65 + 0.35 * depth);
 
-    const baseScale = interpolate(p, [0, 0.55, 1], [0.3, 1.1, 1]);
+    // Slight overshoot during flight, settle at 1 (depth handles far-side)
+    const baseScale = interpolate(p, [0, 0.55, 1], [0.4, 1.05, 1]);
     const scale = baseScale * depth;
 
     const rot = interpolate(p, [0, 1], [particle.rotate * 2.2, particle.rotate * 0.25]);
@@ -121,10 +131,9 @@ function Shard({ particle, progress, spin }: ShardProps) {
           fontSize: particle.size,
           color: particle.color,
           fontWeight: '600',
-          fontFamily: 'SpaceMono-Regular',
           textShadowColor: particle.color,
           textShadowOffset: { width: 0, height: 0 },
-          textShadowRadius: 7,
+          textShadowRadius: 6,
           includeFontPadding: false,
         }}
       >
@@ -150,7 +159,6 @@ export default function IntroSphereAnimation({
   const move = useSharedValue(0);
   const overlayOpacity = useSharedValue(1);
   const spin = useSharedValue(0);
-  const glow = useSharedValue(0);
   const skipHintOpacity = useSharedValue(1);
 
   const targetLogoX = useSharedValue(logoCenterX ?? SCREEN_W / 2);
@@ -172,14 +180,6 @@ export default function IntroSphereAnimation({
       duration: ANIM_DURATION,
       easing: Easing.out(Easing.cubic),
     });
-
-    glow.value = withDelay(
-      ANIM_DURATION - 160,
-      withSequence(
-        withTiming(1, { duration: 200 }),
-        withTiming(0.45, { duration: 260 })
-      )
-    );
 
     const t = setTimeout(() => {
       runOnJS(setBlocking)(false);
@@ -208,7 +208,7 @@ export default function IntroSphereAnimation({
       clearTimeout(t);
       cancelAnimation(spin);
     };
-  }, [progress, move, overlayOpacity, spin, glow, skipHintOpacity, ready]);
+  }, [progress, move, overlayOpacity, spin, skipHintOpacity, ready]);
 
   const skip = () => {
     setBlocking(false);
@@ -216,7 +216,6 @@ export default function IntroSphereAnimation({
     move.value = withTiming(1, { duration: 260 });
     overlayOpacity.value = withTiming(0, { duration: 200 });
     skipHintOpacity.value = 0;
-    glow.value = 0.4;
     spin.value = withRepeat(
       withTiming(360, { duration: 14000, easing: Easing.linear }),
       -1,
@@ -247,14 +246,6 @@ export default function IntroSphereAnimation({
     opacity: overlayOpacity.value,
   }));
 
-  const glowStyle = useAnimatedStyle(() => {
-    const s = interpolate(move.value, [0, 1], [1, LOGO_SCALE * 1.5]);
-    return {
-      opacity: glow.value * 0.5,
-      transform: [{ scale: s }],
-    };
-  });
-
   const skipStyle = useAnimatedStyle(() => ({
     opacity: skipHintOpacity.value,
   }));
@@ -272,7 +263,6 @@ export default function IntroSphereAnimation({
       )}
 
       <Animated.View style={sphereStyle} pointerEvents="none">
-        <Animated.View style={[styles.glow, glowStyle]} />
         {particles.map((p) => (
           <Shard key={p.id} particle={p} progress={progress} spin={spin} />
         ))}
@@ -286,15 +276,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000000',
     zIndex: 10,
-  },
-  glow: {
-    position: 'absolute',
-    width: INTRO_RADIUS * 2.4,
-    height: INTRO_RADIUS * 2.4,
-    marginLeft: -INTRO_RADIUS * 1.2,
-    marginTop: -INTRO_RADIUS * 1.2,
-    borderRadius: INTRO_RADIUS * 1.2,
-    backgroundColor: '#0ea5e9',
   },
   skipHint: {
     position: 'absolute',
