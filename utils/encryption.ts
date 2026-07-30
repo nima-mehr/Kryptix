@@ -56,14 +56,9 @@ const fromBase64 = (b64: string): number[] => {
     const d = chars.indexOf(clean[i + 3] || 'A');
     const triplet = (a << 18) | (b << 12) | (c << 6) | d;
     out.push((triplet >> 16) & 255);
-    if (clean[i + 2] && clean[i + 2] !== undefined && i + 2 < clean.length) {
-      out.push((triplet >> 8) & 255);
-    }
-    if (clean[i + 3] && i + 3 < clean.length) {
-      out.push(triplet & 255);
-    }
+    if (i + 2 < clean.length) out.push((triplet >> 8) & 255);
+    if (i + 3 < clean.length) out.push(triplet & 255);
   }
-  // Fix padding length
   const pad = (b64.match(/=+$/) || [''])[0].length;
   if (pad) out.splice(out.length - pad, pad);
   return out;
@@ -80,7 +75,6 @@ async function sha256Bytes(input: string): Promise<number[]> {
 
 /** ---------- AES-256 (pure JS, CBC + PKCS7) ---------- */
 
-// S-box
 const SBOX = [
   0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
   0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -141,7 +135,7 @@ function keyExpansion(key: number[]): number[][] {
     let temp = [...w[i - 1]];
     if (i % Nk === 0) {
       temp = subWord(rotWord(temp));
-      temp[0] ^= RCON[i / Nk];
+      temp[0] ^= RCON[Math.floor(i / Nk)];
     } else if (i % Nk === 4) {
       temp = subWord(temp);
     }
@@ -271,8 +265,7 @@ function pkcs7Unpad(data: number[]): number[] {
 }
 
 async function deriveAesKey(passphrase: string): Promise<number[]> {
-  const hash = await sha256Bytes(passphrase);
-  return hash; // 32 bytes
+  return sha256Bytes(passphrase);
 }
 
 async function aesEncrypt(plaintext: string, passphrase: string): Promise<{ ciphertext: string; iv: string }> {
@@ -280,7 +273,7 @@ async function aesEncrypt(plaintext: string, passphrase: string): Promise<{ ciph
   const w = keyExpansion(key);
   const ivArr = await Crypto.getRandomBytesAsync(16);
   const iv = Array.from(ivArr);
-  let data = pkcs7Pad(textEncoder(plaintext));
+  const data = pkcs7Pad(textEncoder(plaintext));
   const out: number[] = [];
   let prev = iv;
   for (let i = 0; i < data.length; i += 16) {
