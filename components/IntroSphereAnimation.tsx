@@ -19,16 +19,12 @@ import Animated, {
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-// Large intro sphere
 const INTRO_RADIUS = Math.min(SCREEN_W, SCREEN_H) * 0.28;
-// Final logo diameter matches KryptixSphereLogo default (~44)
 const LOGO_SIZE = 44;
 const LOGO_RADIUS = LOGO_SIZE * 0.42;
 const LOGO_SCALE = LOGO_RADIUS / INTRO_RADIUS;
 
-// Glyph size at logo scale should match vault logo (~size * 0.22)
-const LOGO_GLYPH = Math.max(7, LOGO_SIZE * 0.22);
-// Pre-scale so after LOGO_SCALE transform the glyphs stay readable
+const LOGO_GLYPH = Math.max(7, LOGO_SIZE * 0.2);
 const INTRO_GLYPH = LOGO_GLYPH / LOGO_SCALE;
 
 const ANIM_DURATION = 1100;
@@ -40,48 +36,45 @@ const GLYPHS =
 
 const COLORS = ['#00f0ff', '#4da3ff', '#a78bfa', '#67e8f9', '#c084fc', '#22d3ee'];
 
-// Same density as vault logo for visual consistency
-const PARTICLE_COUNT = 28;
+const PARTICLE_COUNT = 36;
 
 type Particle = {
   id: number;
   char: string;
-  targetX: number;
-  targetY: number;
+  // Unit sphere position * INTRO_RADIUS
+  tx: number;
+  ty: number;
+  tz: number;
   startX: number;
   startY: number;
   size: number;
   color: string;
-  rotate: number;
 };
 
 function createParticles(): Particle[] {
   const particles: Particle[] = [];
 
   for (let i = 0; i < PARTICLE_COUNT; i++) {
+    // Fibonacci sphere – real 3D distribution
     const y = 1 - (i / (PARTICLE_COUNT - 1)) * 2;
     const radiusAtY = Math.sqrt(Math.max(0, 1 - y * y));
     const theta = Math.PI * (3 - Math.sqrt(5)) * i;
-
-    const targetX = Math.cos(theta) * radiusAtY * INTRO_RADIUS;
-    const targetY = y * INTRO_RADIUS;
+    const x = Math.cos(theta) * radiusAtY;
+    const z = Math.sin(theta) * radiusAtY;
 
     const angle = Math.random() * Math.PI * 2;
     const dist = INTRO_RADIUS * 2.6 + Math.random() * 160;
-    const startX = Math.cos(angle) * dist;
-    const startY = Math.sin(angle) * dist * 0.85;
 
     particles.push({
       id: i,
       char: GLYPHS[i % GLYPHS.length],
-      targetX,
-      targetY,
-      startX,
-      startY,
-      // Fixed size so after logo scale it matches KryptixSphereLogo
+      tx: x * INTRO_RADIUS,
+      ty: y * INTRO_RADIUS,
+      tz: z * INTRO_RADIUS,
+      startX: Math.cos(angle) * dist,
+      startY: Math.sin(angle) * dist * 0.85,
       size: INTRO_GLYPH,
       color: COLORS[i % COLORS.length],
-      rotate: (Math.random() - 0.5) * 36,
     });
   }
   return particles;
@@ -90,37 +83,52 @@ function createParticles(): Particle[] {
 type ShardProps = {
   particle: Particle;
   progress: Animated.SharedValue<number>;
-  spin: Animated.SharedValue<number>;
+  spinY: Animated.SharedValue<number>;
+  spinX: Animated.SharedValue<number>;
 };
 
-function Shard({ particle, progress, spin }: ShardProps) {
+function Shard({ particle, progress, spinY, spinX }: ShardProps) {
   const style = useAnimatedStyle(() => {
     const p = progress.value;
 
-    const angle = (spin.value * Math.PI) / 180;
-    const cosA = Math.cos(angle);
-    const spunX = particle.targetX * cosA;
-    const depth = 0.55 + 0.45 * Math.abs(cosA);
+    const yaw = (spinY.value * Math.PI) / 180;
+    const pitch = (spinX.value * Math.PI) / 180;
 
-    const x = interpolate(p, [0, 1], [particle.startX, spunX]);
-    const y = interpolate(p, [0, 1], [particle.startY, particle.targetY]);
+    // Rotate around Y
+    let x = particle.tx * Math.cos(yaw) - particle.tz * Math.sin(yaw);
+    let z = particle.tx * Math.sin(yaw) + particle.tz * Math.cos(yaw);
+    let y = particle.ty;
 
-    const baseOpacity = interpolate(p, [0, 0.12, 1], [0, 1, 0.95]);
-    const opacity = baseOpacity * (0.65 + 0.35 * depth);
+    // Then rotate around X
+    const y2 = y * Math.cos(pitch) - z * Math.sin(pitch);
+    const z2 = y * Math.sin(pitch) + z * Math.cos(pitch);
+    y = y2;
+    z = z2;
 
-    // Slight overshoot during flight, settle at 1 (depth handles far-side)
+    // Perspective projection
+    const perspective = INTRO_RADIUS * 2.8;
+    const scale3d = perspective / (perspective + z);
+    const projX = x * scale3d;
+    const projY = y * scale3d;
+
+    const depth = (z + INTRO_RADIUS) / (INTRO_RADIUS * 2); // 0 back → 1 front
+
+    const flyX = interpolate(p, [0, 1], [particle.startX, projX]);
+    const flyY = interpolate(p, [0, 1], [particle.startY, projY]);
+
+    const baseOpacity = interpolate(p, [0, 0.12, 1], [0, 1, 1]);
+    const opacity = baseOpacity * (0.35 + 0.65 * (1 - depth * 0.85));
+
     const baseScale = interpolate(p, [0, 0.55, 1], [0.4, 1.05, 1]);
-    const scale = baseScale * depth;
-
-    const rot = interpolate(p, [0, 1], [particle.rotate * 2.2, particle.rotate * 0.25]);
+    const scale = baseScale * scale3d;
 
     return {
       position: 'absolute' as const,
-      left: x - particle.size / 2,
-      top: y - particle.size / 2,
+      left: flyX - particle.size / 2,
+      top: flyY - particle.size / 2,
       opacity,
-      transform: [{ scale }, { rotate: `${rot}deg` }],
-      zIndex: Math.round(depth * 100),
+      transform: [{ scale }],
+      zIndex: Math.round((1 - depth) * 200),
     };
   });
 
@@ -158,7 +166,8 @@ export default function IntroSphereAnimation({
   const progress = useSharedValue(0);
   const move = useSharedValue(0);
   const overlayOpacity = useSharedValue(1);
-  const spin = useSharedValue(0);
+  const spinY = useSharedValue(0);
+  const spinX = useSharedValue(0);
   const skipHintOpacity = useSharedValue(1);
 
   const targetLogoX = useSharedValue(logoCenterX ?? SCREEN_W / 2);
@@ -174,6 +183,19 @@ export default function IntroSphereAnimation({
   const ready = useCallback(() => {
     onReady();
   }, [onReady]);
+
+  const startSpin = useCallback(() => {
+    spinY.value = withRepeat(
+      withTiming(360, { duration: 12000, easing: Easing.linear }),
+      -1,
+      false
+    );
+    spinX.value = withRepeat(
+      withTiming(360, { duration: 18000, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, [spinY, spinX]);
 
   useEffect(() => {
     progress.value = withTiming(1, {
@@ -193,11 +215,7 @@ export default function IntroSphereAnimation({
       });
       skipHintOpacity.value = withTiming(0, { duration: 160 });
 
-      spin.value = withRepeat(
-        withTiming(360, { duration: 14000, easing: Easing.linear }),
-        -1,
-        false
-      );
+      runOnJS(startSpin)();
 
       setTimeout(() => {
         runOnJS(ready)();
@@ -206,9 +224,10 @@ export default function IntroSphereAnimation({
 
     return () => {
       clearTimeout(t);
-      cancelAnimation(spin);
+      cancelAnimation(spinY);
+      cancelAnimation(spinX);
     };
-  }, [progress, move, overlayOpacity, spin, skipHintOpacity, ready]);
+  }, [progress, move, overlayOpacity, spinY, spinX, skipHintOpacity, ready, startSpin]);
 
   const skip = () => {
     setBlocking(false);
@@ -216,11 +235,7 @@ export default function IntroSphereAnimation({
     move.value = withTiming(1, { duration: 260 });
     overlayOpacity.value = withTiming(0, { duration: 200 });
     skipHintOpacity.value = 0;
-    spin.value = withRepeat(
-      withTiming(360, { duration: 14000, easing: Easing.linear }),
-      -1,
-      false
-    );
+    startSpin();
     runOnJS(ready)();
   };
 
@@ -264,7 +279,13 @@ export default function IntroSphereAnimation({
 
       <Animated.View style={sphereStyle} pointerEvents="none">
         {particles.map((p) => (
-          <Shard key={p.id} particle={p} progress={progress} spin={spin} />
+          <Shard
+            key={p.id}
+            particle={p}
+            progress={progress}
+            spinY={spinY}
+            spinX={spinX}
+          />
         ))}
       </Animated.View>
     </View>
