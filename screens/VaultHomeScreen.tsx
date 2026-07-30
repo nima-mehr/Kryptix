@@ -105,7 +105,9 @@ const VaultHomeScreen = () => {
       <View style={styles.pad}>
         <View style={styles.header}>
           <View style={styles.titleRow}>
-            <KryptixSphereLogo size={32} />
+            <View style={styles.logoWrap}>
+              <KryptixSphereLogo size={32} />
+            </View>
             <Text
               style={[
                 styles.title,
@@ -117,6 +119,10 @@ const VaultHomeScreen = () => {
                   fontWeight: '700',
                 },
               ]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}
             >
               {t('vaultTitle')}
             </Text>
@@ -148,8 +154,10 @@ const VaultHomeScreen = () => {
             >
               <Text style={{ fontSize: 16 }}>⚙️</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.replace('/login')}>
-              <Text style={[styles.logoutText, { color: colors.tint }]}>{t('logout')}</Text>
+            <TouchableOpacity onPress={() => router.replace('/login')} style={styles.logoutBtn}>
+              <Text style={[styles.logoutText, { color: colors.tint }]} numberOfLines={1}>
+                {t('logout')}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -380,22 +388,33 @@ const styles = StyleSheet.create({
   pad: { paddingHorizontal: 20 },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    gap: 8,
   },
   titleRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flexShrink: 1,
+    minWidth: 0,
+  },
+  logoWrap: {
+    flexShrink: 0,
   },
   title: {
+    flexShrink: 1,
+    minWidth: 0,
     fontSize: 18,
     fontFamily: 'Orbitron',
     letterSpacing: 1.5,
   },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
   circleBtn: {
     width: 36,
     height: 36,
@@ -405,6 +424,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   helpIcon: { fontSize: 17, fontWeight: '700' },
+  logoutBtn: {
+    maxWidth: 110,
+  },
   logoutText: { fontWeight: '600', fontSize: 15 },
   panel: {
     borderRadius: 12,
