@@ -5,9 +5,9 @@ import {
   AppLanguage,
   isAppLanguage,
   languageMeta,
-  TranslationKey,
   translations,
-} from '../i18n/translations';
+  type TranslationKey,
+} from '../i18n/i18n';
 
 type LanguageContextType = {
   language: AppLanguage;
@@ -65,7 +65,17 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
 
   const t = useCallback(
     (key: TranslationKey, vars?: Record<string, string | number>) => {
-      let str = translations[language][key] ?? translations.en[key] ?? String(key);
+      const table = translations[language] ?? translations.en;
+      let str = table[key] ?? translations.en[key] ?? String(key);
+      // Soft fallbacks for language name keys not yet on the en type
+      if (str === String(key)) {
+        const soft: Record<string, string> = {
+          arabic: language === 'ar' ? 'العربية' : 'Arabic',
+          turkish: language === 'tr' ? 'Türkçe' : 'Turkish',
+          japanese: language === 'ja' ? '日本語' : 'Japanese',
+        };
+        if (soft[key as string]) str = soft[key as string];
+      }
       if (vars) {
         Object.entries(vars).forEach(([k, v]) => {
           str = str.split(`{${k}}`).join(String(v));
