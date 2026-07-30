@@ -43,8 +43,8 @@ const HardcodedPasswordPanel = () => {
   const [encrypting, setEncrypting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // List UI
-  const [visiblePlain, setVisiblePlain] = useState<Record<string, boolean>>({});
+  // List UI — decrypted only after explicit Decrypt
+  const [decryptedIds, setDecryptedIds] = useState<Record<string, boolean>>({});
   const [visibleCipher, setVisibleCipher] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -167,6 +167,12 @@ const HardcodedPasswordPanel = () => {
 
       if (isEditing && editingId) {
         await updateHardcodedPassword(editingId, payload);
+        // Hide decrypted view after update
+        setDecryptedIds((prev) => {
+          const next = { ...prev };
+          delete next[editingId];
+          return next;
+        });
       } else {
         await addHardcodedPassword(payload);
       }
@@ -185,6 +191,11 @@ const HardcodedPasswordPanel = () => {
       await deleteHardcodedPassword(id);
       await refresh();
       setConfirmingDeleteId(null);
+      setDecryptedIds((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       if (editingId === id) clearForm();
     } catch {
       Alert.alert('Error', 'Could not delete entry');
@@ -442,10 +453,7 @@ const HardcodedPasswordPanel = () => {
                 </Text>
               </TouchableOpacity>
             </View>
-            <Text
-              style={[styles.previewCipher, { color: colors.text }]}
-              selectable={allowCopy}
-            >
+            <Text style={[styles.previewCipher, { color: colors.text }]} selectable={allowCopy}>
               {showPreviewCipher
                 ? previewCipher
                 : previewCipher
@@ -490,7 +498,7 @@ const HardcodedPasswordPanel = () => {
   );
 
   const renderItem = ({ item }: { item: HardcodedPasswordEntry }) => {
-    const plainOn = !!visiblePlain[item.id];
+    const isDecrypted = !!decryptedIds[item.id];
     const cipherOn = !!visibleCipher[item.id];
     const isConfirming = confirmingDeleteId === item.id;
     const isBeingEdited = editingId === item.id;
@@ -543,34 +551,49 @@ const HardcodedPasswordPanel = () => {
         </View>
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>Decrypted password</Text>
-        <Text style={[styles.value, { color: colors.text }]}>
-          {mask(item.password, plainOn)}
-        </Text>
-        <View style={styles.inlineActions}>
-          <TouchableOpacity onPress={() => setVisiblePlain((p) => ({ ...p, [item.id]: !plainOn }))}>
-            <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 13 }}>
-              {plainOn ? 'Hide' : 'Show'}
-            </Text>
-          </TouchableOpacity>
+        {!isDecrypted ? (
           <TouchableOpacity
-            onPress={() => copyText(item.password, item.id + '-plain', item.allowCopy)}
+            style={[styles.decryptBtn, { backgroundColor: colors.tint }]}
+            onPress={() => setDecryptedIds((p) => ({ ...p, [item.id]: true }))}
           >
-            <Text
-              style={{
-                color: item.allowCopy
-                  ? plainCopied
-                    ? colors.success
-                    : colors.text
-                  : colors.textSecondary,
-                fontWeight: '600',
-                fontSize: 13,
-                opacity: item.allowCopy ? 1 : 0.45,
-              }}
-            >
-              {plainCopied ? 'Copied!' : 'Copy'}
-            </Text>
+            <Text style={styles.decryptBtnText}>Decrypt</Text>
           </TouchableOpacity>
-        </View>
+        ) : (
+          <>
+            <Text style={[styles.value, { color: colors.text }]}>{item.password}</Text>
+            <View style={styles.inlineActions}>
+              <TouchableOpacity
+                onPress={() =>
+                  setDecryptedIds((p) => {
+                    const next = { ...p };
+                    delete next[item.id];
+                    return next;
+                  })
+                }
+              >
+                <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 13 }}>Hide</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => copyText(item.password, item.id + '-plain', item.allowCopy)}
+              >
+                <Text
+                  style={{
+                    color: item.allowCopy
+                      ? plainCopied
+                        ? colors.success
+                        : colors.text
+                      : colors.textSecondary,
+                    fontWeight: '600',
+                    fontSize: 13,
+                    opacity: item.allowCopy ? 1 : 0.45,
+                  }}
+                >
+                  {plainCopied ? 'Copied!' : 'Copy'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>Encrypted value</Text>
         <Text style={[styles.cipherValue, { color: colors.text }]} selectable={item.allowCopy}>
@@ -772,7 +795,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   previewTitle: { fontSize: 12, fontWeight: '700' },
-  previewCipher: { fontSize: 12, lineHeight: 18, fontFamily: undefined },
+  previewCipher: { fontSize: 12, lineHeight: 18 },
   saveBtn: {
     paddingVertical: 14,
     borderRadius: 10,
@@ -797,6 +820,15 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, marginTop: 8, marginBottom: 2 },
   value: { fontSize: 15 },
   cipherValue: { fontSize: 12, lineHeight: 18 },
+  decryptBtn: {
+    marginTop: 4,
+    marginBottom: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  decryptBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   inlineActions: {
     flexDirection: 'row',
     gap: 16,
