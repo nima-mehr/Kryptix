@@ -19,6 +19,7 @@ import {
   isBiometricEnabled,
   setBiometricEnabled,
 } from '../utils/biometrics';
+import IntroSphereAnimation from '../components/IntroSphereAnimation';
 
 const MASTER_PASSWORD_KEY = 'kryptix_master_password';
 
@@ -33,6 +34,7 @@ const LoginScreen = () => {
   const [biometricEnabled, setBiometricEnabledState] = useState(false);
   const [hasStoredPassword, setHasStoredPassword] = useState(false);
   const [checkingBiometric, setCheckingBiometric] = useState(true);
+  const [showIntro, setShowIntro] = useState(true);
 
   const unlock = useCallback(() => {
     router.replace('/dashboard');
@@ -141,6 +143,10 @@ const LoginScreen = () => {
         },
       ]}
     >
+      {showIntro && (
+        <IntroSphereAnimation onFinish={() => setShowIntro(false)} />
+      )}
+
       <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
         Your Offline Password Manager
@@ -160,7 +166,7 @@ const LoginScreen = () => {
         value={masterPassword}
         onChangeText={setMasterPassword}
         secureTextEntry
-        autoFocus={!checkingBiometric}
+        autoFocus={!checkingBiometric && !showIntro}
         editable={!isLoading}
         onSubmitEditing={handleLogin}
       />
