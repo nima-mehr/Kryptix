@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -36,7 +35,9 @@ const LoginScreen = () => {
   const [hasStoredPassword, setHasStoredPassword] = useState(false);
   const [checkingBiometric, setCheckingBiometric] = useState(true);
   const [introReady, setIntroReady] = useState(false);
-  const [logoCenterY, setLogoCenterY] = useState<number | undefined>(undefined);
+  const [logoCenter, setLogoCenter] = useState<{ x: number; y: number } | undefined>(
+    undefined
+  );
 
   const unlock = useCallback(() => {
     router.replace('/dashboard');
@@ -73,10 +74,15 @@ const LoginScreen = () => {
     };
   }, [refreshBiometricState]);
 
-  const onLogoSlotLayout = (e: LayoutChangeEvent) => {
-    const { y, height } = e.nativeEvent.layout;
-    // y is relative to parent; parent has paddingTop = insets.top
-    setLogoCenterY(insets.top + y + height / 2);
+  const sphereAnchorRef = useRef<View>(null);
+
+  const onSphereAnchorLayout = () => {
+    sphereAnchorRef.current?.measureInWindow((x, y, width, height) => {
+      setLogoCenter({
+        x: x + width / 2,
+        y: y + height / 2,
+      });
+    });
   };
 
   const onBiometricPress = async () => {
@@ -152,14 +158,21 @@ const LoginScreen = () => {
       ]}
     >
       <IntroSphereAnimation
-        logoCenterY={logoCenterY}
+        logoCenterX={logoCenter?.x}
+        logoCenterY={logoCenter?.y}
         onReady={() => setIntroReady(true)}
       />
 
-      {/* Logo landing zone – measured so the sphere can fly exactly here */}
-      <View style={styles.logoSlot} onLayout={onLogoSlotLayout} />
+      <View style={styles.titleRow}>
+        <View
+          ref={sphereAnchorRef}
+          style={styles.sphereAnchor}
+          onLayout={onSphereAnchorLayout}
+          collapsable={false}
+        />
+        <Text style={[styles.title, { color: colors.text }]}>KRYPTIX</Text>
+      </View>
 
-      <Text style={[styles.title, { color: colors.text }]}>Kryptix</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
         Your Offline Password Manager
       </Text>
@@ -247,15 +260,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 30,
   },
-  logoSlot: {
-    height: 52,
-    marginBottom: 6,
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    gap: 10,
+  },
+  sphereAnchor: {
+    width: 48,
+    height: 48,
   },
   title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 10,
+    fontSize: 34,
+    fontWeight: '700',
+    fontFamily: 'Orbitron_700Bold',
+    letterSpacing: 3,
+    textTransform: 'uppercase',
   },
   subtitle: {
     fontSize: 16,
