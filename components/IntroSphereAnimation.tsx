@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useCallback } from 'react';
+import React, { useEffect, useMemo, useCallback, useState } from 'react';
 import {
-  View,
   StyleSheet,
   Dimensions,
   Pressable,
   Text,
+  View,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -12,59 +12,58 @@ import Animated, {
   withTiming,
   withDelay,
   withSequence,
+  withRepeat,
   Easing,
   runOnJS,
   interpolate,
+  cancelAnimation,
 } from 'react-native-reanimated';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const CENTER_X = SCREEN_W / 2;
-const CENTER_Y = SCREEN_H / 2 - 20; // slight upward bias so it sits nicely above login
 
-// Character pool – cryptographic / abstract look
+// Intro (large) sphere radius
+const INTRO_RADIUS = Math.min(SCREEN_W, SCREEN_H) * 0.28;
+// Final logo radius (~emoji size)
+const LOGO_RADIUS = 22;
+const LOGO_SCALE = LOGO_RADIUS / INTRO_RADIUS;
+
+const ANIM_DURATION = 1100;
+const MOVE_DURATION = 520;
+const SETTLE_HOLD = 180;
+
 const GLYPHS =
-  'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*+=?αβγδΩΣπμλθξζφψχΣΔ∇∞≠≈≤≥±√∫∑∏∂'.split(
-    ''
-  );
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*+=?αβγδΩΣπμλθξζφψχ'.split('');
 
 type Particle = {
   id: number;
   char: string;
-  // final position on sphere (relative to center)
   targetX: number;
   targetY: number;
-  // start position (off-screen-ish)
   startX: number;
   startY: number;
   size: number;
   color: string;
-  delay: number;
   rotate: number;
 };
 
-const PARTICLE_COUNT = 62;
-const SPHERE_RADIUS = Math.min(SCREEN_W, SCREEN_H) * 0.28;
-const ANIM_DURATION = 1150; // ms – core flight
-const SETTLE_EXTRA = 280; // soft settle + glow
+const PARTICLE_COUNT = 56;
+const COLORS = ['#00f0ff', '#4da3ff', '#a78bfa', '#67e8f9', '#c084fc', '#22d3ee'];
 
 function createParticles(): Particle[] {
   const particles: Particle[] = [];
-  const colors = ['#00f0ff', '#4da3ff', '#a78bfa', '#67e8f9', '#c084fc', '#22d3ee'];
 
   for (let i = 0; i < PARTICLE_COUNT; i++) {
-    // Fibonacci sphere distribution for more even coverage
-    const y = 1 - (i / (PARTICLE_COUNT - 1)) * 2; // -1 → 1
-    const radiusAtY = Math.sqrt(1 - y * y);
-    const theta = Math.PI * (3 - Math.sqrt(5)) * i; // golden angle
+    const y = 1 - (i / (PARTICLE_COUNT - 1)) * 2;
+    const radiusAtY = Math.sqrt(Math.max(0, 1 - y * y));
+    const theta = Math.PI * (3 - Math.sqrt(5)) * i;
 
-    const targetX = Math.cos(theta) * radiusAtY * SPHERE_RADIUS;
-    const targetY = y * SPHERE_RADIUS;
+    const targetX = Math.cos(theta) * radiusAtY * INTRO_RADIUS;
+    const targetY = y * INTRO_RADIUS;
 
-    // Start far outside, random direction
     const angle = Math.random() * Math.PI * 2;
-    const dist = SPHERE_RADIUS * 2.8 + Math.random() * 180;
+    const dist = INTRO_RADIUS * 2.6 + Math.random() * 160;
     const startX = Math.cos(angle) * dist;
-    const startY = Math.sin(angle) * dist * 0.85; // slightly flatter vertical
+    const startY = Math.sin(angle) * dist * 0.85;
 
     particles.push({
       id: i,
@@ -73,10 +72,9 @@ function createParticles(): Particle[] {
       targetY,
       startX,
       startY,
-      size: 11 + Math.floor(Math.random() * 9),
-      color: colors[i % colors.length],
-      delay: Math.floor(Math.random() * 220), // staggered entrance
-      rotate: (Math.random() - 0.5) * 40,
+      size: 10 + Math.floor(Math.random() * 8),
+      color: COLORS[i % COLORS.length],
+      rotate: (Math.random() - 0.5) * 36,
     });
   }
   return particles;
@@ -85,31 +83,38 @@ function createParticles(): Particle[] {
 type ShardProps = {
   particle: Particle;
   progress: Animated.SharedValue<number>;
+  spin: Animated.SharedValue<number>;
 };
 
-function Shard({ particle, progress }: ShardProps) {
+function Shard({ particle, progress, spin }: ShardProps) {
   const style = useAnimatedStyle(() => {
-    const p = progress.value; // 0 → 1
+    const p = progress.value;
 
-    // Position: fly from start → target
-    const x = interpolate(p, [0, 1], [particle.startX, particle.targetX]);
+    // Continuous spin around vertical axis (2D projection)
+    const angle = (spin.value * Math.PI) / 180;
+    const cosA = Math.cos(angle);
+    const spunX = particle.targetX * cosA;
+    // Depth cue: opposite side slightly smaller + dimmer
+    const depth = 0.55 + 0.45 * Math.abs(cosA);
+
+    const x = interpolate(p, [0, 1], [particle.startX, spunX]);
     const y = interpolate(p, [0, 1], [particle.startY, particle.targetY]);
 
-    // Opacity: fade in early, stay visible
-    const opacity = interpolate(p, [0, 0.15, 0.85, 1], [0, 1, 1, 0.92]);
+    const baseOpacity = interpolate(p, [0, 0.12, 1], [0, 1, 0.95]);
+    const opacity = baseOpacity * (0.65 + 0.35 * depth);
 
-    // Scale: start a bit larger / smaller, settle
-    const scale = interpolate(p, [0, 0.6, 1], [0.35, 1.12, 1]);
+    const baseScale = interpolate(p, [0, 0.55, 1], [0.3, 1.1, 1]);
+    const scale = baseScale * depth;
 
-    // Subtle rotation while flying
-    const rot = interpolate(p, [0, 1], [particle.rotate * 2.5, particle.rotate * 0.3]);
+    const rot = interpolate(p, [0, 1], [particle.rotate * 2.2, particle.rotate * 0.25]);
 
     return {
       position: 'absolute' as const,
-      left: CENTER_X + x - particle.size / 2,
-      top: CENTER_Y + y - particle.size / 2,
+      left: x - particle.size / 2,
+      top: y - particle.size / 2,
       opacity,
       transform: [{ scale }, { rotate: `${rot}deg` }],
+      zIndex: Math.round(depth * 100),
     };
   });
 
@@ -120,10 +125,10 @@ function Shard({ particle, progress }: ShardProps) {
           fontSize: particle.size,
           color: particle.color,
           fontWeight: '600',
-          fontFamily: 'SpaceMono-Regular', // falls back gracefully if not loaded
+          fontFamily: 'SpaceMono-Regular',
           textShadowColor: particle.color,
           textShadowOffset: { width: 0, height: 0 },
-          textShadowRadius: 8,
+          textShadowRadius: 7,
           includeFontPadding: false,
         }}
       >
@@ -134,100 +139,172 @@ function Shard({ particle, progress }: ShardProps) {
 }
 
 type Props = {
-  onFinish: () => void;
+  /** Screen Y of the logo slot center (from onLayout). Falls back to a default. */
+  logoCenterY?: number;
+  /** Called when intro assembly + move-to-logo finishes */
+  onReady: () => void;
 };
 
-export default function IntroSphereAnimation({ onFinish }: Props) {
+/**
+ * Assembles a glyph sphere in the center, then shrinks + moves it into the
+ * logo slot and keeps it slowly rotating forever.
+ */
+export default function IntroSphereAnimation({ logoCenterY, onReady }: Props) {
+  const [blocking, setBlocking] = useState(true);
   const progress = useSharedValue(0);
+  const move = useSharedValue(0); // 0 = large center, 1 = logo slot
+  const overlayOpacity = useSharedValue(1);
+  const spin = useSharedValue(0);
   const glow = useSharedValue(0);
-  const containerOpacity = useSharedValue(1);
+  const skipHintOpacity = useSharedValue(1);
+
+  // Shared target Y so we can update when layout is measured
+  const targetLogoY = useSharedValue(logoCenterY ?? SCREEN_H * 0.32);
+
+  useEffect(() => {
+    if (logoCenterY != null) {
+      targetLogoY.value = logoCenterY;
+    }
+  }, [logoCenterY, targetLogoY]);
 
   const particles = useMemo(() => createParticles(), []);
 
-  const finish = useCallback(() => {
-    onFinish();
-  }, [onFinish]);
+  const ready = useCallback(() => {
+    onReady();
+  }, [onReady]);
 
   useEffect(() => {
-    // Main assembly
+    // 1) Assemble
     progress.value = withTiming(1, {
       duration: ANIM_DURATION,
       easing: Easing.out(Easing.cubic),
     });
 
-    // Soft glow pulse near the end
     glow.value = withDelay(
-      ANIM_DURATION - 180,
+      ANIM_DURATION - 160,
       withSequence(
-        withTiming(1, { duration: 220, easing: Easing.out(Easing.quad) }),
-        withTiming(0.55, { duration: 280 })
+        withTiming(1, { duration: 200 }),
+        withTiming(0.45, { duration: 260 })
       )
     );
 
-    // Hold a moment then fade the whole intro out
-    const total = ANIM_DURATION + SETTLE_EXTRA;
-    const timeout = setTimeout(() => {
-      containerOpacity.value = withTiming(
-        0,
-        { duration: 320, easing: Easing.in(Easing.quad) },
-        (finished) => {
-          if (finished) runOnJS(finish)();
-        }
-      );
-    }, total);
+    // 2) Move + scale to logo, fade overlay
+    const t = setTimeout(() => {
+      runOnJS(setBlocking)(false);
+      move.value = withTiming(1, {
+        duration: MOVE_DURATION,
+        easing: Easing.inOut(Easing.cubic),
+      });
+      overlayOpacity.value = withTiming(0, {
+        duration: MOVE_DURATION,
+        easing: Easing.in(Easing.quad),
+      });
+      skipHintOpacity.value = withTiming(0, { duration: 160 });
 
-    return () => clearTimeout(timeout);
-  }, [progress, glow, containerOpacity, finish]);
+      spin.value = withRepeat(
+        withTiming(360, { duration: 14000, easing: Easing.linear }),
+        -1,
+        false
+      );
+
+      setTimeout(() => {
+        runOnJS(ready)();
+      }, MOVE_DURATION);
+    }, ANIM_DURATION + SETTLE_HOLD);
+
+    return () => {
+      clearTimeout(t);
+      cancelAnimation(spin);
+    };
+  }, [progress, move, overlayOpacity, spin, glow, skipHintOpacity, ready]);
 
   const skip = () => {
-    // Immediate skip
-    containerOpacity.value = withTiming(0, { duration: 180 }, (finished) => {
-      if (finished) runOnJS(finish)();
-    });
+    setBlocking(false);
+    progress.value = 1;
+    move.value = withTiming(1, { duration: 260 });
+    overlayOpacity.value = withTiming(0, { duration: 200 });
+    skipHintOpacity.value = 0;
+    glow.value = 0.4;
+    spin.value = withRepeat(
+      withTiming(360, { duration: 14000, easing: Easing.linear }),
+      -1,
+      false
+    );
+    runOnJS(ready)();
   };
 
-  const containerStyle = useAnimatedStyle(() => ({
-    opacity: containerOpacity.value,
+  const sphereStyle = useAnimatedStyle(() => {
+    const introCX = SCREEN_W / 2;
+    const introCY = SCREEN_H / 2 - 20;
+    const logoCX = SCREEN_W / 2;
+    const logoCY = targetLogoY.value;
+
+    const cx = interpolate(move.value, [0, 1], [introCX, logoCX]);
+    const cy = interpolate(move.value, [0, 1], [introCY, logoCY]);
+    const scale = interpolate(move.value, [0, 1], [1, LOGO_SCALE]);
+
+    return {
+      position: 'absolute' as const,
+      left: cx,
+      top: cy,
+      width: 0,
+      height: 0,
+      transform: [{ scale }],
+    };
+  });
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: overlayOpacity.value,
   }));
 
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glow.value * 0.55,
-    transform: [{ scale: 0.85 + glow.value * 0.25 }],
+  const glowStyle = useAnimatedStyle(() => {
+    const s = interpolate(move.value, [0, 1], [1, LOGO_SCALE * 1.5]);
+    return {
+      opacity: glow.value * 0.5,
+      transform: [{ scale: s }],
+    };
+  });
+
+  const skipStyle = useAnimatedStyle(() => ({
+    opacity: skipHintOpacity.value,
   }));
 
   return (
-    <Pressable style={StyleSheet.absoluteFill} onPress={skip}>
-      <Animated.View style={[styles.root, containerStyle]}>
-        {/* Soft radial glow behind the sphere */}
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      <Animated.View style={[styles.overlay, overlayStyle]} pointerEvents="none" />
+
+      {blocking && (
+        <Pressable style={StyleSheet.absoluteFill} onPress={skip}>
+          <Animated.Text style={[styles.skipHint, skipStyle]}>
+            Tap to skip
+          </Animated.Text>
+        </Pressable>
+      )}
+
+      <Animated.View style={sphereStyle} pointerEvents="none">
         <Animated.View style={[styles.glow, glowStyle]} />
-
         {particles.map((p) => (
-          <Shard key={p.id} particle={p} progress={progress} />
+          <Shard key={p.id} particle={p} progress={progress} spin={spin} />
         ))}
-
-        {/* Subtle skip hint – disappears quickly */}
-        <Text style={styles.skipHint}>Tap to skip</Text>
       </Animated.View>
-    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
+  overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000000',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 100,
+    zIndex: 10,
   },
   glow: {
     position: 'absolute',
-    width: SPHERE_RADIUS * 2.6,
-    height: SPHERE_RADIUS * 2.6,
-    borderRadius: SPHERE_RADIUS * 1.3,
+    width: INTRO_RADIUS * 2.4,
+    height: INTRO_RADIUS * 2.4,
+    marginLeft: -INTRO_RADIUS * 1.2,
+    marginTop: -INTRO_RADIUS * 1.2,
+    borderRadius: INTRO_RADIUS * 1.2,
     backgroundColor: '#0ea5e9',
-    // soft blur approximation via large size + low opacity
-    opacity: 0.25,
   },
   skipHint: {
     position: 'absolute',
@@ -236,5 +313,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.28)',
     fontSize: 13,
     letterSpacing: 0.5,
+    zIndex: 20,
   },
 });
