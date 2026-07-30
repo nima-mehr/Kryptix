@@ -49,7 +49,9 @@ const VaultHomeScreen = () => {
 
   const themeLabel =
     mode === 'light' ? t('light') : mode === 'dark' ? t('dark') : t('system');
-  const languageLabel = language === 'fa' ? t('persian') : t('english');
+  const languageMetaEntry = languageMeta.find((m) => m.code === language);
+  const languageLabel = languageMetaEntry ? t(languageMetaEntry.labelKey) : t('english');
+  const usePlainTitleFont = language === 'fa' || language === 'zh' || language === 'ru';
 
   const openSettings = () => {
     setShowHelp(false);
@@ -100,7 +102,7 @@ const VaultHomeScreen = () => {
               style={[
                 styles.title,
                 { color: colors.text },
-                language === 'fa' && {
+                usePlainTitleFont && {
                   fontFamily: undefined,
                   letterSpacing: 0,
                   fontSize: 16,
