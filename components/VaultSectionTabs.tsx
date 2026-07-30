@@ -19,16 +19,10 @@ const TABS: { key: VaultSection; labelKey: TranslationKey; danger?: boolean }[] 
 
 const VaultSectionTabs = ({ section, onChange }: Props) => {
   const { colors } = useTheme();
-  const { t, isRTL } = useLanguage();
+  const { t } = useLanguage();
 
   return (
-    <View
-      style={[
-        styles.row,
-        { backgroundColor: colors.card, borderColor: colors.border },
-        isRTL && { flexDirection: 'row-reverse' },
-      ]}
-    >
+    <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
       {TABS.map((tab) => {
         const active = section === tab.key;
         const activeColor = tab.danger ? colors.danger : colors.tint;
@@ -57,7 +51,6 @@ const VaultSectionTabs = ({ section, onChange }: Props) => {
                 {
                   color: labelColor,
                   fontWeight: active || tab.danger ? '700' : '600',
-                  writingDirection: isRTL ? 'rtl' : 'ltr',
                 },
               ]}
               numberOfLines={1}

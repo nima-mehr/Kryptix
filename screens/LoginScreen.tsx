@@ -28,7 +28,7 @@ const LoginScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const { t, isRTL } = useLanguage();
+  const { t } = useLanguage();
   const [masterPassword, setMasterPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
@@ -37,9 +37,7 @@ const LoginScreen = () => {
   const [hasStoredPassword, setHasStoredPassword] = useState(false);
   const [checkingBiometric, setCheckingBiometric] = useState(true);
   const [introReady, setIntroReady] = useState(false);
-  const [logoCenter, setLogoCenter] = useState<{ x: number; y: number } | undefined>(
-    undefined
-  );
+  const [logoCenter, setLogoCenter] = useState<{ x: number; y: number } | undefined>(undefined);
 
   const containerRef = useRef<View>(null);
   const sphereAnchorRef = useRef<View>(null);
@@ -62,7 +60,6 @@ const LoginScreen = () => {
 
   useEffect(() => {
     let cancelled = false;
-
     const init = async () => {
       try {
         await refreshBiometricState();
@@ -72,7 +69,6 @@ const LoginScreen = () => {
         if (!cancelled) setCheckingBiometric(false);
       }
     };
-
     init();
     return () => {
       cancelled = true;
@@ -123,12 +119,9 @@ const LoginScreen = () => {
       Alert.alert(t('error'), t('enterMasterPassword'));
       return;
     }
-
     setIsLoading(true);
-
     try {
       const storedPassword = await SecureStore.getItemAsync(MASTER_PASSWORD_KEY);
-
       if (storedPassword) {
         if (masterPassword === storedPassword) {
           unlock();
@@ -150,8 +143,6 @@ const LoginScreen = () => {
 
   const showBiometricButton =
     !checkingBiometric && biometricAvailable && hasStoredPassword;
-
-  const textAlign = isRTL ? 'right' : 'left';
 
   return (
     <View
@@ -193,8 +184,6 @@ const LoginScreen = () => {
             backgroundColor: colors.inputBackground,
             borderColor: colors.border,
             color: colors.text,
-            textAlign,
-            writingDirection: isRTL ? 'rtl' : 'ltr',
           },
         ]}
         placeholder={t('masterPassword')}
@@ -207,7 +196,7 @@ const LoginScreen = () => {
         onSubmitEditing={handleLogin}
       />
 
-      <View style={[styles.actionsRow, isRTL && { flexDirection: 'row-reverse' }]}>
+      <View style={styles.actionsRow}>
         <TouchableOpacity
           style={[
             styles.button,
@@ -237,11 +226,6 @@ const LoginScreen = () => {
             ]}
             onPress={onBiometricPress}
             disabled={isLoading}
-            accessibilityLabel={
-              biometricEnabled
-                ? `Unlock with ${biometricLabel}`
-                : `Set up ${biometricLabel}`
-            }
           >
             {isLoading ? (
               <ActivityIndicator color={colors.tint} size="small" />

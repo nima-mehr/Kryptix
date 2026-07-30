@@ -1,9 +1,9 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 type Props = {
-  /** Label on the left when nothing selected */
   label?: string;
   selectedCount: number;
   allSelected: boolean;
@@ -11,16 +11,11 @@ type Props = {
   showSearch: boolean;
   onToggleSelectAll: () => void;
   onToggleSearch: () => void;
-  /** Optional bulk actions rendered between label and search */
   actions?: React.ReactNode;
 };
 
-/**
- * Shared row used across Passwords / Recovery / Hardcoded:
- * [Select all] ........ [actions?] [🔍]
- */
 const SelectAllSearchBar = ({
-  label = 'Select all',
+  label,
   selectedCount,
   allSelected,
   hasItems,
@@ -30,6 +25,10 @@ const SelectAllSearchBar = ({
   actions,
 }: Props) => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
+  const selectLabel = label ?? t('selectAll');
+  const countLabel =
+    selectedCount > 0 ? t('selectedCount', { count: selectedCount }) : selectLabel;
 
   return (
     <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -49,9 +48,7 @@ const SelectAllSearchBar = ({
         >
           {allSelected ? <Text style={styles.checkmark}>✓</Text> : null}
         </View>
-        <Text style={[styles.selectBarText, { color: colors.text }]}>
-          {selectedCount > 0 ? `${selectedCount} selected` : label}
-        </Text>
+        <Text style={[styles.selectBarText, { color: colors.text }]}>{countLabel}</Text>
       </TouchableOpacity>
 
       <View style={styles.selectBarRight}>
