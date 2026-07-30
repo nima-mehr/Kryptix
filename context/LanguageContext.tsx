@@ -3,6 +3,7 @@ import { I18nManager } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import {
   AppLanguage,
+  isAppLanguage,
   languageMeta,
   TranslationKey,
   translations,
@@ -10,7 +11,7 @@ import {
 
 type LanguageContextType = {
   language: AppLanguage;
-  /** Always false — layout positions stay LTR for both languages */
+  /** Always false — layout positions stay LTR for all languages */
   isRTL: boolean;
   setLanguage: (lang: AppLanguage) => Promise<void>;
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
@@ -20,7 +21,6 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 const LANGUAGE_KEY = 'kryptix_language';
 
-/** Keep app layout LTR so controls never mirror when language changes. */
 function ensureLtrLayout() {
   try {
     I18nManager.allowRTL(false);
@@ -41,7 +41,7 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
       try {
         ensureLtrLayout();
         const saved = await SecureStore.getItemAsync(LANGUAGE_KEY);
-        if (saved === 'en' || saved === 'fa') {
+        if (saved && isAppLanguage(saved)) {
           setLanguageState(saved);
         }
       } catch {
