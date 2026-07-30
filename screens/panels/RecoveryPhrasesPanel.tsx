@@ -36,6 +36,7 @@ const RecoveryPhrasesPanel = () => {
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
 
   const isEditing = editingId !== null;
   const wordCount = useMemo(() => countWords(phrase), [phrase]);
@@ -51,6 +52,14 @@ const RecoveryPhrasesPanel = () => {
         e.phrase.toLowerCase().includes(q)
     );
   }, [entries, searchQuery]);
+
+  const selectedCount = useMemo(
+    () => Object.values(selectedIds).filter(Boolean).length,
+    [selectedIds]
+  );
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((e) => selectedIds[e.id]);
 
   const refresh = useCallback(async () => {
     setEntries(await loadRecoveryVault());
@@ -111,6 +120,11 @@ const RecoveryPhrasesPanel = () => {
       await refresh();
       setConfirmingDeleteId(null);
       if (editingId === id) clearForm();
+      setSelectedIds((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     } catch {
       Alert.alert('Error', 'Could not delete phrase');
     }
@@ -129,6 +143,57 @@ const RecoveryPhrasesPanel = () => {
     setVisibleIds((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleSelectAllFiltered = () => {
+    if (filtered.length === 0) return;
+    if (allFilteredSelected) {
+      setSelectedIds((prev) => {
+        const next = { ...prev };
+        filtered.forEach((e) => {
+          delete next[e.id];
+        });
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = { ...prev };
+        filtered.forEach((e) => {
+          next[e.id] = true;
+        });
+        return next;
+      });
+    }
+  };
+
+  const clearSelection = () => setSelectedIds({});
+
+  const handleBulkDelete = () => {
+    if (selectedCount === 0) return;
+    Alert.alert(
+      'Delete selected',
+      `Delete ${selectedCount} phrase${selectedCount === 1 ? '' : 's'}? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const ids = Object.keys(selectedIds).filter((id) => selectedIds[id]);
+            for (const id of ids) {
+              await deleteRecoveryPhrase(id);
+            }
+            await refresh();
+            setSelectedIds({});
+            if (editingId && ids.includes(editingId)) clearForm();
+          },
+        },
+      ]
+    );
+  };
+
   const copyText = (text: string, id: string = 'form') => {
     if (!text) return;
     Clipboard.setString(text);
@@ -142,6 +207,13 @@ const RecoveryPhrasesPanel = () => {
     return words.map(() => '••••').join(' ');
   };
 
+  const toggleSearch = () => {
+    if (showSearch) {
+      setShowSearch(false);
+      setSearchQuery('');
+    } else setShowSearch(true);
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -152,27 +224,52 @@ const RecoveryPhrasesPanel = () => {
 
   const listHeader = (
     <>
-      <View style={styles.toolbar}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Recovery phrases ({entries.length})
-        </Text>
+      <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <TouchableOpacity
-          style={[
-            styles.iconBtn,
-            {
-              backgroundColor: showSearch ? colors.tint + '22' : colors.card,
-              borderColor: showSearch ? colors.tint : colors.border,
-            },
-          ]}
-          onPress={() => {
-            if (showSearch) {
-              setShowSearch(false);
-              setSearchQuery('');
-            } else setShowSearch(true);
-          }}
+          onPress={toggleSelectAllFiltered}
+          style={[styles.selectBarLeft, filtered.length === 0 && { opacity: 0.4 }]}
+          disabled={filtered.length === 0}
         >
-          <Text style={{ fontSize: 15 }}>🔍</Text>
+          <View
+            style={[
+              styles.checkbox,
+              {
+                borderColor: colors.tint,
+                backgroundColor: allFilteredSelected ? colors.tint : 'transparent',
+              },
+            ]}
+          >
+            {allFilteredSelected ? <Text style={styles.checkmark}>✓</Text> : null}
+          </View>
+          <Text style={[styles.selectBarText, { color: colors.text }]}>
+            {selectedCount > 0 ? `${selectedCount} selected` : 'Select all'}
+          </Text>
         </TouchableOpacity>
+
+        <View style={styles.selectBarRight}>
+          {selectedCount > 0 && (
+            <>
+              <TouchableOpacity onPress={clearSelection}>
+                <Text style={[styles.selectBarAction, { color: colors.textSecondary }]}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleBulkDelete}>
+                <Text style={[styles.selectBarAction, { color: colors.danger }]}>Delete</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          <TouchableOpacity
+            style={[
+              styles.searchIconBtn,
+              {
+                backgroundColor: showSearch ? colors.tint + '22' : 'transparent',
+                borderColor: showSearch ? colors.tint : colors.border,
+              },
+            ]}
+            onPress={toggleSearch}
+          >
+            <Text style={{ fontSize: 15 }}>🔍</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {showSearch && (
@@ -187,12 +284,7 @@ const RecoveryPhrasesPanel = () => {
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <TouchableOpacity
-            onPress={() => {
-              setShowSearch(false);
-              setSearchQuery('');
-            }}
-          >
+          <TouchableOpacity onPress={toggleSearch}>
             <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
           </TouchableOpacity>
         </View>
@@ -309,6 +401,7 @@ const RecoveryPhrasesPanel = () => {
     const isCopied = copiedId === item.id;
     const isConfirming = confirmingDeleteId === item.id;
     const isBeingEdited = editingId === item.id;
+    const isSelected = !!selectedIds[item.id];
     const words = countWords(item.phrase);
 
     return (
@@ -317,12 +410,33 @@ const RecoveryPhrasesPanel = () => {
           styles.entry,
           {
             backgroundColor: colors.card,
-            borderWidth: isBeingEdited ? 1.5 : 0,
-            borderColor: isBeingEdited ? colors.tint : 'transparent',
+            borderWidth: isBeingEdited || isSelected ? 1.5 : 0,
+            borderColor: isBeingEdited
+              ? colors.tint
+              : isSelected
+                ? colors.tint + '99'
+                : 'transparent',
           },
         ]}
       >
         <View style={styles.entryHeader}>
+          <TouchableOpacity
+            onPress={() => toggleSelect(item.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ marginRight: 8 }}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  borderColor: colors.tint,
+                  backgroundColor: isSelected ? colors.tint : 'transparent',
+                },
+              ]}
+            >
+              {isSelected ? <Text style={styles.checkmark}>✓</Text> : null}
+            </View>
+          </TouchableOpacity>
           <Text style={[styles.entryName, { color: colors.text, flex: 1 }]}>{item.name}</Text>
           <TouchableOpacity onPress={() => toggleFavorite(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={{ fontSize: 20, color: item.favorite ? '#f5a623' : colors.textSecondary }}>
@@ -426,21 +540,38 @@ const RecoveryPhrasesPanel = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  toolbar: {
+  selectBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
     marginBottom: 12,
+    gap: 8,
   },
-  sectionTitle: { fontSize: 17, fontWeight: '700' },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  selectBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
+  selectBarText: { fontSize: 14, fontWeight: '600' },
+  selectBarRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  selectBarAction: { fontSize: 14, fontWeight: '700' },
+  searchIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkmark: { color: '#fff', fontSize: 13, fontWeight: '800' },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
