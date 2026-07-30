@@ -37,8 +37,9 @@ function RootLayoutNav() {
 }
 
 export default function Layout() {
+  // Map the bold face to the simple family name "Orbitron"
   const [fontsLoaded] = useFonts({
-    Orbitron_700Bold,
+    Orbitron: Orbitron_700Bold,
   });
 
   useEffect(() => {
