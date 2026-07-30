@@ -21,9 +21,7 @@ import Animated, {
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
-// Intro (large) sphere radius
 const INTRO_RADIUS = Math.min(SCREEN_W, SCREEN_H) * 0.28;
-// Final logo radius (~emoji size)
 const LOGO_RADIUS = 22;
 const LOGO_SCALE = LOGO_RADIUS / INTRO_RADIUS;
 
@@ -90,11 +88,9 @@ function Shard({ particle, progress, spin }: ShardProps) {
   const style = useAnimatedStyle(() => {
     const p = progress.value;
 
-    // Continuous spin around vertical axis (2D projection)
     const angle = (spin.value * Math.PI) / 180;
     const cosA = Math.cos(angle);
     const spunX = particle.targetX * cosA;
-    // Depth cue: opposite side slightly smaller + dimmer
     const depth = 0.55 + 0.45 * Math.abs(cosA);
 
     const x = interpolate(p, [0, 1], [particle.startX, spunX]);
@@ -139,33 +135,31 @@ function Shard({ particle, progress, spin }: ShardProps) {
 }
 
 type Props = {
-  /** Screen Y of the logo slot center (from onLayout). Falls back to a default. */
+  logoCenterX?: number;
   logoCenterY?: number;
-  /** Called when intro assembly + move-to-logo finishes */
   onReady: () => void;
 };
 
-/**
- * Assembles a glyph sphere in the center, then shrinks + moves it into the
- * logo slot and keeps it slowly rotating forever.
- */
-export default function IntroSphereAnimation({ logoCenterY, onReady }: Props) {
+export default function IntroSphereAnimation({
+  logoCenterX,
+  logoCenterY,
+  onReady,
+}: Props) {
   const [blocking, setBlocking] = useState(true);
   const progress = useSharedValue(0);
-  const move = useSharedValue(0); // 0 = large center, 1 = logo slot
+  const move = useSharedValue(0);
   const overlayOpacity = useSharedValue(1);
   const spin = useSharedValue(0);
   const glow = useSharedValue(0);
   const skipHintOpacity = useSharedValue(1);
 
-  // Shared target Y so we can update when layout is measured
+  const targetLogoX = useSharedValue(logoCenterX ?? SCREEN_W / 2);
   const targetLogoY = useSharedValue(logoCenterY ?? SCREEN_H * 0.32);
 
   useEffect(() => {
-    if (logoCenterY != null) {
-      targetLogoY.value = logoCenterY;
-    }
-  }, [logoCenterY, targetLogoY]);
+    if (logoCenterX != null) targetLogoX.value = logoCenterX;
+    if (logoCenterY != null) targetLogoY.value = logoCenterY;
+  }, [logoCenterX, logoCenterY, targetLogoX, targetLogoY]);
 
   const particles = useMemo(() => createParticles(), []);
 
@@ -174,7 +168,6 @@ export default function IntroSphereAnimation({ logoCenterY, onReady }: Props) {
   }, [onReady]);
 
   useEffect(() => {
-    // 1) Assemble
     progress.value = withTiming(1, {
       duration: ANIM_DURATION,
       easing: Easing.out(Easing.cubic),
@@ -188,7 +181,6 @@ export default function IntroSphereAnimation({ logoCenterY, onReady }: Props) {
       )
     );
 
-    // 2) Move + scale to logo, fade overlay
     const t = setTimeout(() => {
       runOnJS(setBlocking)(false);
       move.value = withTiming(1, {
@@ -236,11 +228,9 @@ export default function IntroSphereAnimation({ logoCenterY, onReady }: Props) {
   const sphereStyle = useAnimatedStyle(() => {
     const introCX = SCREEN_W / 2;
     const introCY = SCREEN_H / 2 - 20;
-    const logoCX = SCREEN_W / 2;
-    const logoCY = targetLogoY.value;
 
-    const cx = interpolate(move.value, [0, 1], [introCX, logoCX]);
-    const cy = interpolate(move.value, [0, 1], [introCY, logoCY]);
+    const cx = interpolate(move.value, [0, 1], [introCX, targetLogoX.value]);
+    const cy = interpolate(move.value, [0, 1], [introCY, targetLogoY.value]);
     const scale = interpolate(move.value, [0, 1], [1, LOGO_SCALE]);
 
     return {
