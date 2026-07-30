@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts, Orbitron_700Bold } from '@expo-google-fonts/orbitron';
 import * as SplashScreen from 'expo-splash-screen';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
+import { LanguageProvider } from '../context/LanguageContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -37,7 +38,6 @@ function RootLayoutNav() {
 }
 
 export default function Layout() {
-  // Map the bold face to the simple family name "Orbitron"
   const [fontsLoaded] = useFonts({
     Orbitron: Orbitron_700Bold,
   });
@@ -55,7 +55,9 @@ export default function Layout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <RootLayoutNav />
+        <LanguageProvider>
+          <RootLayoutNav />
+        </LanguageProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

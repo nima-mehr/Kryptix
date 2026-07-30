@@ -1,6 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
+import type { TranslationKey } from '../i18n/translations';
 
 export type VaultSection = 'passwords' | 'recovery' | 'hardcoded';
 
@@ -9,17 +11,24 @@ type Props = {
   onChange: (section: VaultSection) => void;
 };
 
-const TABS: { key: VaultSection; label: string; danger?: boolean }[] = [
-  { key: 'passwords', label: 'Passwords' },
-  { key: 'recovery', label: 'Recovery phrases' },
-  { key: 'hardcoded', label: 'Hardcoded password', danger: true },
+const TABS: { key: VaultSection; labelKey: TranslationKey; danger?: boolean }[] = [
+  { key: 'passwords', labelKey: 'tabPasswords' },
+  { key: 'recovery', labelKey: 'tabRecovery' },
+  { key: 'hardcoded', labelKey: 'tabHardcoded', danger: true },
 ];
 
 const VaultSectionTabs = ({ section, onChange }: Props) => {
   const { colors } = useTheme();
+  const { t, isRTL } = useLanguage();
 
   return (
-    <View style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <View
+      style={[
+        styles.row,
+        { backgroundColor: colors.card, borderColor: colors.border },
+        isRTL && { flexDirection: 'row-reverse' },
+      ]}
+    >
       {TABS.map((tab) => {
         const active = section === tab.key;
         const activeColor = tab.danger ? colors.danger : colors.tint;
@@ -48,11 +57,12 @@ const VaultSectionTabs = ({ section, onChange }: Props) => {
                 {
                   color: labelColor,
                   fontWeight: active || tab.danger ? '700' : '600',
+                  writingDirection: isRTL ? 'rtl' : 'ltr',
                 },
               ]}
               numberOfLines={1}
             >
-              {tab.label}
+              {t(tab.labelKey)}
             </Text>
           </TouchableOpacity>
         );

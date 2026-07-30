@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import {
   authenticateWithBiometrics,
   getBiometricStatus,
@@ -27,6 +28,7 @@ const LoginScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { t, isRTL } = useLanguage();
   const [masterPassword, setMasterPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
@@ -35,7 +37,6 @@ const LoginScreen = () => {
   const [hasStoredPassword, setHasStoredPassword] = useState(false);
   const [checkingBiometric, setCheckingBiometric] = useState(true);
   const [introReady, setIntroReady] = useState(false);
-  // Position relative to the login container (not window)
   const [logoCenter, setLogoCenter] = useState<{ x: number; y: number } | undefined>(
     undefined
   );
@@ -79,7 +80,6 @@ const LoginScreen = () => {
   }, [refreshBiometricState]);
 
   const measureLogoTarget = () => {
-    // Convert window coords → container-relative so absolute positioning is correct
     containerRef.current?.measureInWindow((cX, cY) => {
       sphereAnchorRef.current?.measureInWindow((x, y, width, height) => {
         setLogoCenter({
@@ -100,7 +100,7 @@ const LoginScreen = () => {
           return;
         }
         if (!result.cancelled && result.error) {
-          Alert.alert('Unlock failed', result.error);
+          Alert.alert(t('unlockFailed'), result.error);
         }
       } else {
         const result = await authenticateWithBiometrics(
@@ -110,7 +110,7 @@ const LoginScreen = () => {
           await setBiometricEnabled(true);
           setBiometricEnabledState(true);
         } else if (!result.cancelled && result.error) {
-          Alert.alert('Could not enable', result.error);
+          Alert.alert(t('couldNotEnable'), result.error);
         }
       }
     } finally {
@@ -120,7 +120,7 @@ const LoginScreen = () => {
 
   const handleLogin = async () => {
     if (!masterPassword) {
-      Alert.alert('Error', 'Please enter a master password');
+      Alert.alert(t('error'), t('enterMasterPassword'));
       return;
     }
 
@@ -133,7 +133,7 @@ const LoginScreen = () => {
         if (masterPassword === storedPassword) {
           unlock();
         } else {
-          Alert.alert('Error', 'Incorrect master password');
+          Alert.alert(t('error'), t('incorrectMasterPassword'));
         }
       } else {
         await SecureStore.setItemAsync(MASTER_PASSWORD_KEY, masterPassword);
@@ -142,7 +142,7 @@ const LoginScreen = () => {
       }
     } catch (error) {
       console.error('SecureStore error:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      Alert.alert(t('error'), t('somethingWentWrong'));
     } finally {
       setIsLoading(false);
     }
@@ -150,6 +150,8 @@ const LoginScreen = () => {
 
   const showBiometricButton =
     !checkingBiometric && biometricAvailable && hasStoredPassword;
+
+  const textAlign = isRTL ? 'right' : 'left';
 
   return (
     <View
@@ -181,7 +183,7 @@ const LoginScreen = () => {
       </View>
 
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        Your Offline Password Manager
+        {t('offlinePasswordManager')}
       </Text>
 
       <TextInput
@@ -191,9 +193,11 @@ const LoginScreen = () => {
             backgroundColor: colors.inputBackground,
             borderColor: colors.border,
             color: colors.text,
+            textAlign,
+            writingDirection: isRTL ? 'rtl' : 'ltr',
           },
         ]}
-        placeholder="Master password"
+        placeholder={t('masterPassword')}
         placeholderTextColor={colors.textSecondary}
         value={masterPassword}
         onChangeText={setMasterPassword}
@@ -203,7 +207,7 @@ const LoginScreen = () => {
         onSubmitEditing={handleLogin}
       />
 
-      <View style={styles.actionsRow}>
+      <View style={[styles.actionsRow, isRTL && { flexDirection: 'row-reverse' }]}>
         <TouchableOpacity
           style={[
             styles.button,
@@ -217,7 +221,7 @@ const LoginScreen = () => {
           {isLoading && !showBiometricButton ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Unlock</Text>
+            <Text style={styles.buttonText}>{t('unlock')}</Text>
           )}
         </TouchableOpacity>
 
@@ -253,9 +257,7 @@ const LoginScreen = () => {
       </View>
 
       {!hasStoredPassword && !checkingBiometric && (
-        <Text style={[styles.info, { color: colors.textSecondary }]}>
-          First time? Enter a new password to create your vault.
-        </Text>
+        <Text style={[styles.info, { color: colors.textSecondary }]}>{t('firstTimeHint')}</Text>
       )}
     </View>
   );
@@ -274,7 +276,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 12,
   },
-  // Landing pad for the sphere – same height as title so vertical centers match
   sphereAnchor: {
     width: 44,
     height: 44,
@@ -283,7 +284,6 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontFamily: 'Orbitron',
     letterSpacing: 4,
-    // no fontWeight – the loaded face is already Bold
   },
   subtitle: {
     fontSize: 16,
