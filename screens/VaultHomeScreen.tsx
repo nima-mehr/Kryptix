@@ -50,8 +50,16 @@ const VaultHomeScreen = () => {
   const themeLabel =
     mode === 'light' ? t('light') : mode === 'dark' ? t('dark') : t('system');
   const languageMetaEntry = languageMeta.find((m) => m.code === language);
-  const languageLabel = languageMetaEntry ? t(languageMetaEntry.labelKey) : t('english');
-  const usePlainTitleFont = language === 'fa' || language === 'zh' || language === 'ru';
+  // Always show the language’s own name (endonym), independent of UI language
+  const languageLabel = languageMetaEntry?.nativeName ?? 'English';
+  const usePlainTitleFont =
+    language === 'fa' ||
+    language === 'zh' ||
+    language === 'ru' ||
+    language === 'ar' ||
+    language === 'ja' ||
+    language === 'el' ||
+    language === 'ko';
 
   const openSettings = () => {
     setShowHelp(false);
@@ -341,7 +349,7 @@ const VaultHomeScreen = () => {
                       }}
                     >
                       <Text style={{ fontSize: 16 }}>{lang.flag}</Text>
-                      <Text style={[styles.rowLabel, { color: colors.text }]}>{t(lang.labelKey)}</Text>
+                      <Text style={[styles.rowLabel, { color: colors.text }]}>{lang.nativeName}</Text>
                       {active && <Text style={{ color: colors.tint }}>✓</Text>}
                     </TouchableOpacity>
                   );

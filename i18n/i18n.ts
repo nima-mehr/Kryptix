@@ -39,6 +39,24 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
   ko: merge(koOverrides),
 };
 
+/** Always-visible endonym — not translated with the UI language */
+export const NATIVE_LANGUAGE_NAMES: Record<AppLanguage, string> = {
+  en: 'English',
+  fa: 'فارسی',
+  ru: 'Русский',
+  de: 'Deutsch',
+  fr: 'Français',
+  zh: '中文',
+  ar: 'العربية',
+  tr: 'Türkçe',
+  ja: '日本語',
+  es: 'Español',
+  pt: 'Português',
+  it: 'Italiano',
+  el: 'Ελληνικά',
+  ko: '한국어',
+};
+
 export type LanguageLabelKey =
   | TranslationKey
   | 'arabic'
@@ -54,18 +72,21 @@ export const languageMeta: {
   code: AppLanguage;
   labelKey: LanguageLabelKey;
   flag: string;
+  /** Fixed name in that language’s own script */
+  nativeName: string;
 }[] = [
-  ...baseMeta.map((m) => ({
-    code: m.code as AppLanguage,
-    labelKey: m.labelKey as LanguageLabelKey,
-    flag: m.flag,
-  })),
-  { code: 'ar', labelKey: 'arabic', flag: '🇸🇦' },
-  { code: 'tr', labelKey: 'turkish', flag: '🇹🇷' },
-  { code: 'ja', labelKey: 'japanese', flag: '🇯🇵' },
-  { code: 'es', labelKey: 'spanish', flag: '🇪🇸' },
-  { code: 'pt', labelKey: 'portuguese', flag: '🇵🇹' },
-  { code: 'it', labelKey: 'italian', flag: '🇮🇹' },
-  { code: 'el', labelKey: 'greek', flag: '🇬🇷' },
-  { code: 'ko', labelKey: 'korean', flag: '🇰🇷' },
+  { code: 'en', labelKey: 'english', flag: '🇬🇧', nativeName: NATIVE_LANGUAGE_NAMES.en },
+  { code: 'fa', labelKey: 'persian', flag: '🇮🇷', nativeName: NATIVE_LANGUAGE_NAMES.fa },
+  { code: 'ru', labelKey: 'russian', flag: '🇷🇺', nativeName: NATIVE_LANGUAGE_NAMES.ru },
+  { code: 'de', labelKey: 'german', flag: '🇩🇪', nativeName: NATIVE_LANGUAGE_NAMES.de },
+  { code: 'fr', labelKey: 'french', flag: '🇫🇷', nativeName: NATIVE_LANGUAGE_NAMES.fr },
+  { code: 'zh', labelKey: 'chinese', flag: '🇨🇳', nativeName: NATIVE_LANGUAGE_NAMES.zh },
+  { code: 'ar', labelKey: 'arabic', flag: '🇸🇦', nativeName: NATIVE_LANGUAGE_NAMES.ar },
+  { code: 'tr', labelKey: 'turkish', flag: '🇹🇷', nativeName: NATIVE_LANGUAGE_NAMES.tr },
+  { code: 'ja', labelKey: 'japanese', flag: '🇯🇵', nativeName: NATIVE_LANGUAGE_NAMES.ja },
+  { code: 'es', labelKey: 'spanish', flag: '🇪🇸', nativeName: NATIVE_LANGUAGE_NAMES.es },
+  { code: 'pt', labelKey: 'portuguese', flag: '🇵🇹', nativeName: NATIVE_LANGUAGE_NAMES.pt },
+  { code: 'it', labelKey: 'italian', flag: '🇮🇹', nativeName: NATIVE_LANGUAGE_NAMES.it },
+  { code: 'el', labelKey: 'greek', flag: '🇬🇷', nativeName: NATIVE_LANGUAGE_NAMES.el },
+  { code: 'ko', labelKey: 'korean', flag: '🇰🇷', nativeName: NATIVE_LANGUAGE_NAMES.ko },
 ];
