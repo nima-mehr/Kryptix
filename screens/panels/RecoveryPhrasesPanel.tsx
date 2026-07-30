@@ -28,8 +28,13 @@ const RecoveryPhrasesPanel = () => {
   const [name, setName] = useState('');
   const [phrase, setPhrase] = useState('');
   const [notes, setNotes] = useState('');
+  /** Explicit reveal via Show button */
   const [showFormPhrase, setShowFormPhrase] = useState(false);
-  const [phraseFocused, setPhraseFocused] = useState(false);
+  /**
+   * Allows plain text while composing in an empty field (type/paste).
+   * Cleared on blur once the field has content so focus alone never reveals.
+   */
+  const [composing, setComposing] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [visibleIds, setVisibleIds] = useState<Record<string, boolean>>({});
@@ -43,8 +48,8 @@ const RecoveryPhrasesPanel = () => {
   const wordCount = useMemo(() => countWords(phrase), [phrase]);
   const isFormCopied = copiedId === 'form';
 
-  // multiline + secureTextEntry is unsupported on iOS/Android — reveal via state instead
-  const showPlainPhrase = showFormPhrase || phraseFocused || phrase.length === 0;
+  // Never reveal on focus alone — only Show, or while still composing an empty entry
+  const showPlainPhrase = showFormPhrase || composing;
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -81,7 +86,7 @@ const RecoveryPhrasesPanel = () => {
     setPhrase('');
     setNotes('');
     setShowFormPhrase(false);
-    setPhraseFocused(false);
+    setComposing(true);
     setEditingId(null);
   };
 
@@ -91,8 +96,32 @@ const RecoveryPhrasesPanel = () => {
     setPhrase(entry.phrase);
     setNotes(entry.notes || '');
     setShowFormPhrase(false);
-    setPhraseFocused(false);
+    setComposing(false);
     setConfirmingDeleteId(null);
+  };
+
+  const handlePhraseChange = (text: string) => {
+    setPhrase(text);
+    if (text.length === 0) {
+      setComposing(true);
+      setShowFormPhrase(false);
+    }
+  };
+
+  const handlePhraseBlur = () => {
+    // After leaving the field, lock it to masked unless Show is on
+    if (phrase.trim().length > 0 && !showFormPhrase) {
+      setComposing(false);
+    }
+  };
+
+  const toggleFormPhraseVisibility = () => {
+    if (!phrase) return;
+    setShowFormPhrase((v) => {
+      const next = !v;
+      if (!next) setComposing(false);
+      return next;
+    });
   };
 
   const handleSave = async () => {
@@ -336,24 +365,19 @@ const RecoveryPhrasesPanel = () => {
             placeholder="Recovery phrase (12 or 24 words)"
             placeholderTextColor={colors.textSecondary}
             value={phrase}
-            onChangeText={setPhrase}
-            onFocus={() => setPhraseFocused(true)}
-            onBlur={() => setPhraseFocused(false)}
+            onChangeText={handlePhraseChange}
+            onBlur={handlePhraseBlur}
             multiline
             autoCapitalize="none"
             autoCorrect={false}
             style={phraseFieldStyle}
           />
         ) : (
-          <TouchableOpacity
-            style={phraseFieldStyle}
-            onPress={() => setShowFormPhrase(true)}
-            activeOpacity={0.7}
-          >
+          <View style={phraseFieldStyle}>
             <Text style={[styles.maskedPhrase, { color: colors.text }]}>
               {maskPhrase(phrase)}
             </Text>
-          </TouchableOpacity>
+          </View>
         )}
 
         <View style={styles.phraseMetaRow}>
@@ -363,11 +387,11 @@ const RecoveryPhrasesPanel = () => {
           <View style={styles.phraseActions}>
             <TouchableOpacity
               style={[styles.smallBtn, { backgroundColor: colors.tint + '18' }, !phrase && { opacity: 0.4 }]}
-              onPress={() => setShowFormPhrase((v) => !v)}
+              onPress={toggleFormPhraseVisibility}
               disabled={!phrase}
             >
               <Text style={[styles.smallBtnText, { color: colors.tint }]}>
-                {showFormPhrase || phraseFocused ? 'Hide' : 'Show'}
+                {showFormPhrase ? 'Hide' : 'Show'}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
