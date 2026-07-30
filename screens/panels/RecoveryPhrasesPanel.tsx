@@ -29,6 +29,7 @@ const RecoveryPhrasesPanel = () => {
   const [phrase, setPhrase] = useState('');
   const [notes, setNotes] = useState('');
   const [showFormPhrase, setShowFormPhrase] = useState(false);
+  const [phraseFocused, setPhraseFocused] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [visibleIds, setVisibleIds] = useState<Record<string, boolean>>({});
@@ -41,6 +42,9 @@ const RecoveryPhrasesPanel = () => {
   const isEditing = editingId !== null;
   const wordCount = useMemo(() => countWords(phrase), [phrase]);
   const isFormCopied = copiedId === 'form';
+
+  // multiline + secureTextEntry is unsupported on iOS/Android — reveal via state instead
+  const showPlainPhrase = showFormPhrase || phraseFocused || phrase.length === 0;
 
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -77,6 +81,7 @@ const RecoveryPhrasesPanel = () => {
     setPhrase('');
     setNotes('');
     setShowFormPhrase(false);
+    setPhraseFocused(false);
     setEditingId(null);
   };
 
@@ -86,6 +91,7 @@ const RecoveryPhrasesPanel = () => {
     setPhrase(entry.phrase);
     setNotes(entry.notes || '');
     setShowFormPhrase(false);
+    setPhraseFocused(false);
     setConfirmingDeleteId(null);
   };
 
@@ -222,6 +228,16 @@ const RecoveryPhrasesPanel = () => {
     );
   }
 
+  const phraseFieldStyle = [
+    styles.input,
+    styles.phraseInput,
+    {
+      backgroundColor: colors.inputBackground,
+      borderColor: colors.border,
+      color: colors.text,
+    },
+  ];
+
   const listHeader = (
     <>
       <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -315,25 +331,30 @@ const RecoveryPhrasesPanel = () => {
           ]}
         />
 
-        <TextInput
-          placeholder="Recovery phrase (12 or 24 words)"
-          placeholderTextColor={colors.textSecondary}
-          value={phrase}
-          onChangeText={setPhrase}
-          multiline
-          secureTextEntry={!showFormPhrase}
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={[
-            styles.input,
-            styles.phraseInput,
-            {
-              backgroundColor: colors.inputBackground,
-              borderColor: colors.border,
-              color: colors.text,
-            },
-          ]}
-        />
+        {showPlainPhrase ? (
+          <TextInput
+            placeholder="Recovery phrase (12 or 24 words)"
+            placeholderTextColor={colors.textSecondary}
+            value={phrase}
+            onChangeText={setPhrase}
+            onFocus={() => setPhraseFocused(true)}
+            onBlur={() => setPhraseFocused(false)}
+            multiline
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={phraseFieldStyle}
+          />
+        ) : (
+          <TouchableOpacity
+            style={phraseFieldStyle}
+            onPress={() => setShowFormPhrase(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.maskedPhrase, { color: colors.text }]}>
+              {maskPhrase(phrase)}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.phraseMetaRow}>
           <Text style={[styles.wordCount, { color: colors.textSecondary }]}>
@@ -346,7 +367,7 @@ const RecoveryPhrasesPanel = () => {
               disabled={!phrase}
             >
               <Text style={[styles.smallBtnText, { color: colors.tint }]}>
-                {showFormPhrase ? 'Hide' : 'Show'}
+                {showFormPhrase || phraseFocused ? 'Hide' : 'Show'}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -599,6 +620,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   phraseInput: { minHeight: 88, textAlignVertical: 'top' },
+  maskedPhrase: { fontSize: 16, lineHeight: 24 },
   noteInput: { minHeight: 56, textAlignVertical: 'top' },
   phraseMetaRow: {
     flexDirection: 'row',
