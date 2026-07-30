@@ -1,10 +1,12 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Clipboard, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import VaultSectionTabs, { VaultSection } from '../components/VaultSectionTabs';
 import KryptixSphereLogo from '../components/KryptixSphereLogo';
 import { ThemeMode, useTheme } from '../context/ThemeContext';
+import { languageMeta, useLanguage } from '../context/LanguageContext';
+import type { TranslationKey } from '../i18n/translations';
 import DashboardScreen from './DashboardScreen';
 import HardcodedPasswordPanel from './panels/HardcodedPasswordPanel';
 import RecoveryPhrasesPanel from './panels/RecoveryPhrasesPanel';
@@ -14,47 +16,20 @@ type HelpView = 'main' | 'faq' | 'about' | 'support';
 
 const SUPPORT_WALLET = '0xe9e9603Ca0677669b2bFd02AC4eE286e2764AA33';
 
-const FAQ_ITEMS: { q: string; a: string }[] = [
-  {
-    q: 'Is my data stored online?',
-    a: 'No. Kryptix keeps passwords and recovery phrases only on this device. Nothing is uploaded to a server.',
-  },
-  {
-    q: 'How is my data encrypted?',
-    a:
-      'Vault data is stored in the device secure store and unlocked with your master password. ' +
-      'Hardcoded passwords can use one of three algorithms you choose per entry:\n\n' +
-      '• AES-256 — industry-standard symmetric encryption (CBC + random IV, key derived with SHA-256). Recommended for anything sensitive.\n' +
-      '• XOR — lightweight obfuscation with a SHA-256–derived key. Faster, weaker than AES.\n' +
-      '• Base64 — encoding only (not real encryption). Useful for reversible display, not for security.',
-  },
-  {
-    q: 'What if I forget my master password?',
-    a: 'There is no cloud recovery. Without your master password you cannot unlock the vault. Store it somewhere safe offline.',
-  },
-  {
-    q: 'How do I import or export?',
-    a: 'In the Passwords section use Import / Export. You can export as JSON or CSV for backup or moving to another device.',
-  },
-  {
-    q: 'What are recovery phrases for?',
-    a: 'Use the Recovery phrases tab to store wallet seed phrases (12 or 24 words) separately from regular logins.',
-  },
-  {
-    q: 'Can I use Face ID / fingerprint?',
-    a: 'Yes. After unlocking with your password once, you can enable biometrics from the login screen for faster unlocks.',
-  },
+const FAQ_KEYS: { q: TranslationKey; a: TranslationKey }[] = [
+  { q: 'faq1q', a: 'faq1a' },
+  { q: 'faq2q', a: 'faq2a' },
+  { q: 'faq3q', a: 'faq3a' },
+  { q: 'faq4q', a: 'faq4a' },
+  { q: 'faq5q', a: 'faq5a' },
+  { q: 'faq6q', a: 'faq6a' },
 ];
 
-/**
- * Top-level vault shell: shared header + section tabs for every section.
- * Settings menu holds Theme, Language, and room for more options.
- * Help (?) menu holds FAQ, About, and developer support.
- */
 const VaultHomeScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, mode, setMode } = useTheme();
+  const { t, language, setLanguage, isRTL } = useLanguage();
   const [section, setSection] = useState<VaultSection>('passwords');
   const [showSettings, setShowSettings] = useState(false);
   const [settingsView, setSettingsView] = useState<SettingsView>('main');
@@ -63,14 +38,19 @@ const VaultHomeScreen = () => {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [walletCopied, setWalletCopied] = useState(false);
 
-  const themeOptions: { key: ThemeMode; label: string; icon: string }[] = [
-    { key: 'light', label: 'Light', icon: '☀️' },
-    { key: 'dark', label: 'Dark', icon: '🌙' },
-    { key: 'system', label: 'System', icon: '📱' },
-  ];
+  const themeOptions: { key: ThemeMode; labelKey: TranslationKey; icon: string }[] = useMemo(
+    () => [
+      { key: 'light', labelKey: 'light', icon: '☀️' },
+      { key: 'dark', labelKey: 'dark', icon: '🌙' },
+      { key: 'system', labelKey: 'system', icon: '📱' },
+    ],
+    []
+  );
 
   const themeLabel =
-    mode === 'light' ? 'Light' : mode === 'dark' ? 'Dark' : 'System';
+    mode === 'light' ? t('light') : mode === 'dark' ? t('dark') : t('system');
+
+  const languageLabel = language === 'fa' ? t('persian') : t('english');
 
   const openSettings = () => {
     setShowHelp(false);
@@ -106,6 +86,9 @@ const VaultHomeScreen = () => {
     setTimeout(() => setWalletCopied(false), 1500);
   };
 
+  const textDir = isRTL ? 'rtl' : 'ltr';
+  const rowDir = isRTL ? 'row-reverse' : 'row';
+
   return (
     <View
       style={[
@@ -118,12 +101,20 @@ const VaultHomeScreen = () => {
       ]}
     >
       <View style={styles.pad}>
-        <View style={styles.header}>
-          <View style={styles.titleRow}>
+        <View style={[styles.header, { flexDirection: rowDir as 'row' }]}>
+          <View style={[styles.titleRow, { flexDirection: rowDir as 'row' }]}>
             <KryptixSphereLogo size={32} />
-            <Text style={[styles.title, { color: colors.text }]}>KRYPTIX VAULT</Text>
+            <Text
+              style={[
+                styles.title,
+                { color: colors.text, writingDirection: textDir },
+                isRTL && { fontFamily: undefined, letterSpacing: 0, fontSize: 16, fontWeight: '700' },
+              ]}
+            >
+              {t('vaultTitle')}
+            </Text>
           </View>
-          <View style={styles.headerRight}>
+          <View style={[styles.headerRight, { flexDirection: rowDir as 'row' }]}>
             <TouchableOpacity
               style={[
                 styles.circleBtn,
@@ -133,7 +124,7 @@ const VaultHomeScreen = () => {
                 },
               ]}
               onPress={openHelp}
-              accessibilityLabel="Help and FAQ"
+              accessibilityLabel={t('helpAndFaq')}
             >
               <Text style={[styles.helpIcon, { color: colors.text }]}>?</Text>
             </TouchableOpacity>
@@ -146,12 +137,12 @@ const VaultHomeScreen = () => {
                 },
               ]}
               onPress={openSettings}
-              accessibilityLabel="Settings"
+              accessibilityLabel={t('settings')}
             >
               <Text style={{ fontSize: 16 }}>⚙️</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.replace('/login')}>
-              <Text style={[styles.logoutText, { color: colors.tint }]}>Logout</Text>
+              <Text style={[styles.logoutText, { color: colors.tint }]}>{t('logout')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -160,21 +151,43 @@ const VaultHomeScreen = () => {
           <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {helpView === 'main' && (
               <>
-                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>Help</Text>
-                <TouchableOpacity style={styles.row} onPress={() => setHelpView('faq')}>
+                <Text
+                  style={[
+                    styles.panelTitle,
+                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
+                  ]}
+                >
+                  {t('help')}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
+                  onPress={() => setHelpView('faq')}
+                >
                   <Text style={{ fontSize: 16 }}>❓</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text }]}>FAQ</Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
+                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                    {t('faq')}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>{isRTL ? '‹' : '›'}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.row} onPress={() => setHelpView('about')}>
+                <TouchableOpacity
+                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
+                  onPress={() => setHelpView('about')}
+                >
                   <Text style={{ fontSize: 16 }}>ℹ️</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text }]}>About</Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
+                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                    {t('about')}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>{isRTL ? '‹' : '›'}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.row} onPress={() => setHelpView('support')}>
+                <TouchableOpacity
+                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
+                  onPress={() => setHelpView('support')}
+                >
                   <Text style={{ fontSize: 16 }}>💬</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text }]}>Developer support</Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
+                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                    {t('developerSupport')}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>{isRTL ? '‹' : '›'}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -182,25 +195,57 @@ const VaultHomeScreen = () => {
             {helpView === 'faq' && (
               <>
                 <TouchableOpacity style={styles.backRow} onPress={() => setHelpView('main')}>
-                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>← Help</Text>
+                  <Text
+                    style={{
+                      color: colors.tint,
+                      fontWeight: '600',
+                      fontSize: 15,
+                      textAlign: isRTL ? 'right' : 'left',
+                    }}
+                  >
+                    {t('backHelp')}
+                  </Text>
                 </TouchableOpacity>
-                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>FAQ</Text>
-                {FAQ_ITEMS.map((item, index) => {
+                <Text
+                  style={[
+                    styles.panelTitle,
+                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
+                  ]}
+                >
+                  {t('faq')}
+                </Text>
+                {FAQ_KEYS.map((item, index) => {
                   const open = expandedFaq === index;
                   return (
                     <View key={item.q}>
                       <TouchableOpacity
-                        style={styles.row}
+                        style={[styles.row, { flexDirection: rowDir as 'row' }]}
                         onPress={() => setExpandedFaq(open ? null : index)}
                       >
-                        <Text style={[styles.rowLabel, { color: colors.text }]}>{item.q}</Text>
+                        <Text
+                          style={[
+                            styles.rowLabel,
+                            { color: colors.text, textAlign: isRTL ? 'right' : 'left' },
+                          ]}
+                        >
+                          {t(item.q)}
+                        </Text>
                         <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
-                          {open ? '▾' : '›'}
+                          {open ? '▾' : isRTL ? '‹' : '›'}
                         </Text>
                       </TouchableOpacity>
                       {open && (
-                        <Text style={[styles.faqAnswer, { color: colors.textSecondary }]}>
-                          {item.a}
+                        <Text
+                          style={[
+                            styles.faqAnswer,
+                            {
+                              color: colors.textSecondary,
+                              textAlign: isRTL ? 'right' : 'left',
+                              writingDirection: textDir,
+                            },
+                          ]}
+                        >
+                          {t(item.a)}
                         </Text>
                       )}
                     </View>
@@ -212,15 +257,46 @@ const VaultHomeScreen = () => {
             {helpView === 'about' && (
               <>
                 <TouchableOpacity style={styles.backRow} onPress={() => setHelpView('main')}>
-                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>← Help</Text>
+                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>
+                    {t('backHelp')}
+                  </Text>
                 </TouchableOpacity>
-                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>About</Text>
+                <Text
+                  style={[
+                    styles.panelTitle,
+                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
+                  ]}
+                >
+                  {t('about')}
+                </Text>
                 <View style={styles.aboutBlock}>
-                  <Text style={[styles.aboutName, { color: colors.text }]}>Kryptix Vault</Text>
-                  <Text style={[styles.aboutLine, { color: colors.textSecondary }]}>Version 1.0.0</Text>
-                  <Text style={[styles.aboutBody, { color: colors.textSecondary }]}>
-                    Offline password manager for logins, recovery phrases, and emergency credentials.
-                    Data stays on your device — no accounts, no cloud sync.
+                  <Text
+                    style={[
+                      styles.aboutName,
+                      { color: colors.text, textAlign: isRTL ? 'right' : 'left' },
+                    ]}
+                  >
+                    {t('aboutName')}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.aboutLine,
+                      { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
+                    ]}
+                  >
+                    {t('aboutVersion')}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.aboutBody,
+                      {
+                        color: colors.textSecondary,
+                        textAlign: isRTL ? 'right' : 'left',
+                        writingDirection: textDir,
+                      },
+                    ]}
+                  >
+                    {t('aboutBody')}
                   </Text>
                 </View>
               </>
@@ -229,32 +305,71 @@ const VaultHomeScreen = () => {
             {helpView === 'support' && (
               <>
                 <TouchableOpacity style={styles.backRow} onPress={() => setHelpView('main')}>
-                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>← Help</Text>
+                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>
+                    {t('backHelp')}
+                  </Text>
                 </TouchableOpacity>
-                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>
-                  Developer support
+                <Text
+                  style={[
+                    styles.panelTitle,
+                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
+                  ]}
+                >
+                  {t('developerSupport')}
                 </Text>
-                <Text style={[styles.supportIntro, { color: colors.textSecondary }]}>
-                  Found a bug or have a feature idea? Reach out below. If you enjoy Kryptix, you can
-                  support development with ETH or USDT (ERC-20) on Ethereum.
+                <Text
+                  style={[
+                    styles.supportIntro,
+                    {
+                      color: colors.textSecondary,
+                      textAlign: isRTL ? 'right' : 'left',
+                      writingDirection: textDir,
+                    },
+                  ]}
+                >
+                  {t('supportIntro')}
                 </Text>
-                <TouchableOpacity style={styles.row} onPress={openGithub}>
+                <TouchableOpacity
+                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
+                  onPress={openGithub}
+                >
                   <Text style={{ fontSize: 16 }}>📦</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text }]}>GitHub repository</Text>
-                  <Text style={{ color: colors.tint, fontSize: 13, fontWeight: '600' }}>Open</Text>
+                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                    {t('githubRepo')}
+                  </Text>
+                  <Text style={{ color: colors.tint, fontSize: 13, fontWeight: '600' }}>{t('open')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.row} onPress={openEmail}>
+                <TouchableOpacity
+                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
+                  onPress={openEmail}
+                >
                   <Text style={{ fontSize: 16 }}>✉️</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text }]}>Email developer</Text>
-                  <Text style={{ color: colors.tint, fontSize: 13, fontWeight: '600' }}>Mail</Text>
+                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                    {t('emailDeveloper')}
+                  </Text>
+                  <Text style={{ color: colors.tint, fontSize: 13, fontWeight: '600' }}>{t('mail')}</Text>
                 </TouchableOpacity>
 
-                <Text style={[styles.panelTitle, { color: colors.textSecondary, paddingTop: 8 }]}>
-                  Donate (ETH / USDT)
+                <Text
+                  style={[
+                    styles.panelTitle,
+                    {
+                      color: colors.textSecondary,
+                      paddingTop: 8,
+                      textAlign: isRTL ? 'right' : 'left',
+                    },
+                  ]}
+                >
+                  {t('donateEthUsdt')}
                 </Text>
                 <View style={styles.walletBlock}>
-                  <Text style={[styles.walletHint, { color: colors.textSecondary }]}>
-                    Ethereum network · ETH or USDT (ERC-20)
+                  <Text
+                    style={[
+                      styles.walletHint,
+                      { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
+                    ]}
+                  >
+                    {t('walletHint')}
                   </Text>
                   <Text
                     style={[styles.walletAddress, { color: colors.text, borderColor: colors.border }]}
@@ -269,6 +384,7 @@ const VaultHomeScreen = () => {
                         backgroundColor: walletCopied
                           ? colors.successBackground || colors.tint + '22'
                           : colors.tint + '18',
+                        alignSelf: isRTL ? 'flex-end' : 'flex-start',
                       },
                     ]}
                     onPress={copyWallet}
@@ -280,7 +396,7 @@ const VaultHomeScreen = () => {
                         fontSize: 14,
                       }}
                     >
-                      {walletCopied ? 'Copied!' : 'Copy address'}
+                      {walletCopied ? t('copied') : t('copyAddress')}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -293,18 +409,35 @@ const VaultHomeScreen = () => {
           <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {settingsView === 'main' && (
               <>
-                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>Settings</Text>
-                <TouchableOpacity style={styles.row} onPress={() => setSettingsView('theme')}>
+                <Text
+                  style={[
+                    styles.panelTitle,
+                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
+                  ]}
+                >
+                  {t('settings')}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
+                  onPress={() => setSettingsView('theme')}
+                >
                   <Text style={{ fontSize: 16 }}>🎨</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text }]}>Theme</Text>
+                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                    {t('theme')}
+                  </Text>
                   <Text style={[styles.rowValue, { color: colors.textSecondary }]}>{themeLabel}</Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>{isRTL ? '‹' : '›'}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.row} onPress={() => setSettingsView('language')}>
+                <TouchableOpacity
+                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
+                  onPress={() => setSettingsView('language')}
+                >
                   <Text style={{ fontSize: 16 }}>🌐</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text }]}>Language</Text>
-                  <Text style={[styles.rowValue, { color: colors.textSecondary }]}>English</Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
+                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                    {t('language')}
+                  </Text>
+                  <Text style={[styles.rowValue, { color: colors.textSecondary }]}>{languageLabel}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>{isRTL ? '‹' : '›'}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -312,20 +445,35 @@ const VaultHomeScreen = () => {
             {settingsView === 'theme' && (
               <>
                 <TouchableOpacity style={styles.backRow} onPress={() => setSettingsView('main')}>
-                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>← Settings</Text>
+                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>
+                    {t('backSettings')}
+                  </Text>
                 </TouchableOpacity>
-                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>Theme</Text>
+                <Text
+                  style={[
+                    styles.panelTitle,
+                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
+                  ]}
+                >
+                  {t('theme')}
+                </Text>
                 {themeOptions.map((opt) => (
                   <TouchableOpacity
                     key={opt.key}
-                    style={[styles.row, mode === opt.key && { backgroundColor: colors.tint + '22' }]}
+                    style={[
+                      styles.row,
+                      { flexDirection: rowDir as 'row' },
+                      mode === opt.key && { backgroundColor: colors.tint + '22' },
+                    ]}
                     onPress={() => {
                       setMode(opt.key);
                       closeSettings();
                     }}
                   >
                     <Text style={{ fontSize: 16 }}>{opt.icon}</Text>
-                    <Text style={[styles.rowLabel, { color: colors.text }]}>{opt.label}</Text>
+                    <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
+                      {t(opt.labelKey)}
+                    </Text>
                     {mode === opt.key && <Text style={{ color: colors.tint }}>✓</Text>}
                   </TouchableOpacity>
                 ))}
@@ -335,20 +483,46 @@ const VaultHomeScreen = () => {
             {settingsView === 'language' && (
               <>
                 <TouchableOpacity style={styles.backRow} onPress={() => setSettingsView('main')}>
-                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>← Settings</Text>
+                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>
+                    {t('backSettings')}
+                  </Text>
                 </TouchableOpacity>
-                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>Language</Text>
-                <TouchableOpacity
-                  style={[styles.row, { backgroundColor: colors.tint + '22' }]}
-                  onPress={closeSettings}
+                <Text
+                  style={[
+                    styles.panelTitle,
+                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
+                  ]}
                 >
-                  <Text style={{ fontSize: 16 }}>🇬🇧</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text }]}>English</Text>
-                  <Text style={{ color: colors.tint }}>✓</Text>
-                </TouchableOpacity>
-                <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                  More languages coming soon.
+                  {t('language')}
                 </Text>
+                {languageMeta.map((lang) => {
+                  const active = language === lang.code;
+                  return (
+                    <TouchableOpacity
+                      key={lang.code}
+                      style={[
+                        styles.row,
+                        { flexDirection: rowDir as 'row' },
+                        active && { backgroundColor: colors.tint + '22' },
+                      ]}
+                      onPress={async () => {
+                        await setLanguage(lang.code);
+                        closeSettings();
+                      }}
+                    >
+                      <Text style={{ fontSize: 16 }}>{lang.flag}</Text>
+                      <Text
+                        style={[
+                          styles.rowLabel,
+                          { color: colors.text, textAlign: isRTL ? 'right' : 'left' },
+                        ]}
+                      >
+                        {t(lang.labelKey)}
+                      </Text>
+                      {active && <Text style={{ color: colors.tint }}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
               </>
             )}
           </View>
@@ -433,13 +607,6 @@ const styles = StyleSheet.create({
   },
   rowLabel: { flex: 1, fontSize: 15, fontWeight: '500' },
   rowValue: { fontSize: 14, fontWeight: '500' },
-  hint: {
-    fontSize: 13,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    paddingTop: 4,
-    fontStyle: 'italic',
-  },
   faqAnswer: {
     fontSize: 14,
     lineHeight: 20,
@@ -481,7 +648,6 @@ const styles = StyleSheet.create({
   },
   copyWalletBtn: {
     marginTop: 10,
-    alignSelf: 'flex-start',
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 10,
