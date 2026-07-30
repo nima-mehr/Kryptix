@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Clipboard, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import VaultSectionTabs, { VaultSection } from '../components/VaultSectionTabs';
 import KryptixSphereLogo from '../components/KryptixSphereLogo';
@@ -12,10 +12,21 @@ import RecoveryPhrasesPanel from './panels/RecoveryPhrasesPanel';
 type SettingsView = 'main' | 'theme' | 'language';
 type HelpView = 'main' | 'faq' | 'about' | 'support';
 
+const SUPPORT_WALLET = '0xe9e9603Ca0677669b2bFd02AC4eE286e2764AA33';
+
 const FAQ_ITEMS: { q: string; a: string }[] = [
   {
     q: 'Is my data stored online?',
     a: 'No. Kryptix keeps passwords and recovery phrases only on this device. Nothing is uploaded to a server.',
+  },
+  {
+    q: 'How is my data encrypted?',
+    a:
+      'Vault data is stored in the device secure store and unlocked with your master password. ' +
+      'Hardcoded passwords can use one of three algorithms you choose per entry:\n\n' +
+      '• AES-256 — industry-standard symmetric encryption (CBC + random IV, key derived with SHA-256). Recommended for anything sensitive.\n' +
+      '• XOR — lightweight obfuscation with a SHA-256–derived key. Faster, weaker than AES.\n' +
+      '• Base64 — encoding only (not real encryption). Useful for reversible display, not for security.',
   },
   {
     q: 'What if I forget my master password?',
@@ -50,6 +61,7 @@ const VaultHomeScreen = () => {
   const [showHelp, setShowHelp] = useState(false);
   const [helpView, setHelpView] = useState<HelpView>('main');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const [walletCopied, setWalletCopied] = useState(false);
 
   const themeOptions: { key: ThemeMode; label: string; icon: string }[] = [
     { key: 'light', label: 'Light', icon: '☀️' },
@@ -80,18 +92,18 @@ const VaultHomeScreen = () => {
     setShowHelp((v) => !v);
   };
 
-  const closeHelp = () => {
-    setShowHelp(false);
-    setHelpView('main');
-    setExpandedFaq(null);
-  };
-
   const openGithub = () => {
     Linking.openURL('https://github.com/nima-mehr/Kryptix');
   };
 
   const openEmail = () => {
     Linking.openURL('mailto:N.mehr27@gmail.com?subject=Kryptix%20support');
+  };
+
+  const copyWallet = () => {
+    Clipboard.setString(SUPPORT_WALLET);
+    setWalletCopied(true);
+    setTimeout(() => setWalletCopied(false), 1500);
   };
 
   return (
@@ -223,7 +235,8 @@ const VaultHomeScreen = () => {
                   Developer support
                 </Text>
                 <Text style={[styles.supportIntro, { color: colors.textSecondary }]}>
-                  Found a bug or have a feature idea? Reach out below.
+                  Found a bug or have a feature idea? Reach out below. If you enjoy Kryptix, you can
+                  support development with ETH or USDT (ERC-20) on Ethereum.
                 </Text>
                 <TouchableOpacity style={styles.row} onPress={openGithub}>
                   <Text style={{ fontSize: 16 }}>📦</Text>
@@ -235,6 +248,42 @@ const VaultHomeScreen = () => {
                   <Text style={[styles.rowLabel, { color: colors.text }]}>Email developer</Text>
                   <Text style={{ color: colors.tint, fontSize: 13, fontWeight: '600' }}>Mail</Text>
                 </TouchableOpacity>
+
+                <Text style={[styles.panelTitle, { color: colors.textSecondary, paddingTop: 8 }]}>
+                  Donate (ETH / USDT)
+                </Text>
+                <View style={styles.walletBlock}>
+                  <Text style={[styles.walletHint, { color: colors.textSecondary }]}>
+                    Ethereum network · ETH or USDT (ERC-20)
+                  </Text>
+                  <Text
+                    style={[styles.walletAddress, { color: colors.text, borderColor: colors.border }]}
+                    selectable
+                  >
+                    {SUPPORT_WALLET}
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.copyWalletBtn,
+                      {
+                        backgroundColor: walletCopied
+                          ? colors.successBackground || colors.tint + '22'
+                          : colors.tint + '18',
+                      },
+                    ]}
+                    onPress={copyWallet}
+                  >
+                    <Text
+                      style={{
+                        color: walletCopied ? colors.success || colors.tint : colors.tint,
+                        fontWeight: '700',
+                        fontSize: 14,
+                      }}
+                    >
+                      {walletCopied ? 'Copied!' : 'Copy address'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </>
             )}
           </View>
@@ -412,6 +461,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 8,
     paddingTop: 4,
+  },
+  walletBlock: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 4,
+  },
+  walletHint: {
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  walletAddress: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    lineHeight: 18,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+  },
+  copyWalletBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
   },
 });
 
