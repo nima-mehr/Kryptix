@@ -14,12 +14,23 @@ type LanguageContextType = {
   /** Always false — layout positions stay LTR for all languages */
   isRTL: boolean;
   setLanguage: (lang: AppLanguage) => Promise<void>;
-  t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
+  t: (key: TranslationKey | string, vars?: Record<string, string | number>) => string;
 };
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 const LANGUAGE_KEY = 'kryptix_language';
+
+const LANG_NAME_SOFT: Record<string, Record<string, string>> = {
+  arabic: { ar: 'العربية', default: 'Arabic' },
+  turkish: { tr: 'Türkçe', default: 'Turkish' },
+  japanese: { ja: '日本語', default: 'Japanese' },
+  spanish: { es: 'Español', default: 'Spanish' },
+  portuguese: { pt: 'Português', default: 'Portuguese' },
+  italian: { it: 'Italiano', default: 'Italian' },
+  greek: { el: 'Ελληνικά', default: 'Greek' },
+  korean: { ko: '한국어', default: 'Korean' },
+};
 
 function ensureLtrLayout() {
   try {
@@ -64,18 +75,18 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
   }, []);
 
   const t = useCallback(
-    (key: TranslationKey, vars?: Record<string, string | number>) => {
+    (key: TranslationKey | string, vars?: Record<string, string | number>) => {
       const table = translations[language] ?? translations.en;
-      let str = table[key] ?? translations.en[key] ?? String(key);
-      // Soft fallbacks for language name keys not yet on the en type
-      if (str === String(key)) {
-        const soft: Record<string, string> = {
-          arabic: language === 'ar' ? 'العربية' : 'Arabic',
-          turkish: language === 'tr' ? 'Türkçe' : 'Turkish',
-          japanese: language === 'ja' ? '日本語' : 'Japanese',
-        };
-        if (soft[key as string]) str = soft[key as string];
+      let str =
+        (table as Record<string, string>)[key] ??
+        (translations.en as Record<string, string>)[key] ??
+        String(key);
+
+      if (str === String(key) && LANG_NAME_SOFT[key]) {
+        const names = LANG_NAME_SOFT[key];
+        str = names[language] ?? names.default;
       }
+
       if (vars) {
         Object.entries(vars).forEach(([k, v]) => {
           str = str.split(`{${k}}`).join(String(v));

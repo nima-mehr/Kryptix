@@ -1,5 +1,19 @@
 /** Canonical language list — import from here in LanguageContext / UI */
-export type AppLanguage = 'en' | 'fa' | 'ru' | 'de' | 'fr' | 'zh' | 'ar' | 'tr' | 'ja';
+export type AppLanguage =
+  | 'en'
+  | 'fa'
+  | 'ru'
+  | 'de'
+  | 'fr'
+  | 'zh'
+  | 'ar'
+  | 'tr'
+  | 'ja'
+  | 'es'
+  | 'pt'
+  | 'it'
+  | 'el'
+  | 'ko';
 
 export const APP_LANGUAGES: AppLanguage[] = [
   'en',
@@ -11,6 +25,11 @@ export const APP_LANGUAGES: AppLanguage[] = [
   'ar',
   'tr',
   'ja',
+  'es',
+  'pt',
+  'it',
+  'el',
+  'ko',
 ];
 
 export function isAppLanguage(value: string): value is AppLanguage {
