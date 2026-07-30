@@ -29,7 +29,7 @@ const VaultHomeScreen = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, mode, setMode } = useTheme();
-  const { t, language, setLanguage, isRTL } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const [section, setSection] = useState<VaultSection>('passwords');
   const [showSettings, setShowSettings] = useState(false);
   const [settingsView, setSettingsView] = useState<SettingsView>('main');
@@ -49,7 +49,6 @@ const VaultHomeScreen = () => {
 
   const themeLabel =
     mode === 'light' ? t('light') : mode === 'dark' ? t('dark') : t('system');
-
   const languageLabel = language === 'fa' ? t('persian') : t('english');
 
   const openSettings = () => {
@@ -72,22 +71,15 @@ const VaultHomeScreen = () => {
     setShowHelp((v) => !v);
   };
 
-  const openGithub = () => {
-    Linking.openURL('https://github.com/nima-mehr/Kryptix');
-  };
-
-  const openEmail = () => {
+  const openGithub = () => Linking.openURL('https://github.com/nima-mehr/Kryptix');
+  const openEmail = () =>
     Linking.openURL('mailto:N.mehr27@gmail.com?subject=Kryptix%20support');
-  };
 
   const copyWallet = () => {
     Clipboard.setString(SUPPORT_WALLET);
     setWalletCopied(true);
     setTimeout(() => setWalletCopied(false), 1500);
   };
-
-  const textDir = isRTL ? 'rtl' : 'ltr';
-  const rowDir = isRTL ? 'row-reverse' : 'row';
 
   return (
     <View
@@ -101,20 +93,25 @@ const VaultHomeScreen = () => {
       ]}
     >
       <View style={styles.pad}>
-        <View style={[styles.header, { flexDirection: rowDir as 'row' }]}>
-          <View style={[styles.titleRow, { flexDirection: rowDir as 'row' }]}>
+        <View style={styles.header}>
+          <View style={styles.titleRow}>
             <KryptixSphereLogo size={32} />
             <Text
               style={[
                 styles.title,
-                { color: colors.text, writingDirection: textDir },
-                isRTL && { fontFamily: undefined, letterSpacing: 0, fontSize: 16, fontWeight: '700' },
+                { color: colors.text },
+                language === 'fa' && {
+                  fontFamily: undefined,
+                  letterSpacing: 0,
+                  fontSize: 16,
+                  fontWeight: '700',
+                },
               ]}
             >
               {t('vaultTitle')}
             </Text>
           </View>
-          <View style={[styles.headerRight, { flexDirection: rowDir as 'row' }]}>
+          <View style={styles.headerRight}>
             <TouchableOpacity
               style={[
                 styles.circleBtn,
@@ -151,43 +148,21 @@ const VaultHomeScreen = () => {
           <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {helpView === 'main' && (
               <>
-                <Text
-                  style={[
-                    styles.panelTitle,
-                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
-                  ]}
-                >
-                  {t('help')}
-                </Text>
-                <TouchableOpacity
-                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
-                  onPress={() => setHelpView('faq')}
-                >
+                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>{t('help')}</Text>
+                <TouchableOpacity style={styles.row} onPress={() => setHelpView('faq')}>
                   <Text style={{ fontSize: 16 }}>❓</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
-                    {t('faq')}
-                  </Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>{isRTL ? '‹' : '›'}</Text>
+                  <Text style={[styles.rowLabel, { color: colors.text }]}>{t('faq')}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
-                  onPress={() => setHelpView('about')}
-                >
+                <TouchableOpacity style={styles.row} onPress={() => setHelpView('about')}>
                   <Text style={{ fontSize: 16 }}>ℹ️</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
-                    {t('about')}
-                  </Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>{isRTL ? '‹' : '›'}</Text>
+                  <Text style={[styles.rowLabel, { color: colors.text }]}>{t('about')}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
-                  onPress={() => setHelpView('support')}
-                >
+                <TouchableOpacity style={styles.row} onPress={() => setHelpView('support')}>
                   <Text style={{ fontSize: 16 }}>💬</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
-                    {t('developerSupport')}
-                  </Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>{isRTL ? '‹' : '›'}</Text>
+                  <Text style={[styles.rowLabel, { color: colors.text }]}>{t('developerSupport')}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -195,56 +170,24 @@ const VaultHomeScreen = () => {
             {helpView === 'faq' && (
               <>
                 <TouchableOpacity style={styles.backRow} onPress={() => setHelpView('main')}>
-                  <Text
-                    style={{
-                      color: colors.tint,
-                      fontWeight: '600',
-                      fontSize: 15,
-                      textAlign: isRTL ? 'right' : 'left',
-                    }}
-                  >
-                    {t('backHelp')}
-                  </Text>
+                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>{t('backHelp')}</Text>
                 </TouchableOpacity>
-                <Text
-                  style={[
-                    styles.panelTitle,
-                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
-                  ]}
-                >
-                  {t('faq')}
-                </Text>
+                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>{t('faq')}</Text>
                 {FAQ_KEYS.map((item, index) => {
                   const open = expandedFaq === index;
                   return (
                     <View key={item.q}>
                       <TouchableOpacity
-                        style={[styles.row, { flexDirection: rowDir as 'row' }]}
+                        style={styles.row}
                         onPress={() => setExpandedFaq(open ? null : index)}
                       >
-                        <Text
-                          style={[
-                            styles.rowLabel,
-                            { color: colors.text, textAlign: isRTL ? 'right' : 'left' },
-                          ]}
-                        >
-                          {t(item.q)}
-                        </Text>
+                        <Text style={[styles.rowLabel, { color: colors.text }]}>{t(item.q)}</Text>
                         <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
-                          {open ? '▾' : isRTL ? '‹' : '›'}
+                          {open ? '▾' : '›'}
                         </Text>
                       </TouchableOpacity>
                       {open && (
-                        <Text
-                          style={[
-                            styles.faqAnswer,
-                            {
-                              color: colors.textSecondary,
-                              textAlign: isRTL ? 'right' : 'left',
-                              writingDirection: textDir,
-                            },
-                          ]}
-                        >
+                        <Text style={[styles.faqAnswer, { color: colors.textSecondary }]}>
                           {t(item.a)}
                         </Text>
                       )}
@@ -257,47 +200,15 @@ const VaultHomeScreen = () => {
             {helpView === 'about' && (
               <>
                 <TouchableOpacity style={styles.backRow} onPress={() => setHelpView('main')}>
-                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>
-                    {t('backHelp')}
-                  </Text>
+                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>{t('backHelp')}</Text>
                 </TouchableOpacity>
-                <Text
-                  style={[
-                    styles.panelTitle,
-                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
-                  ]}
-                >
-                  {t('about')}
-                </Text>
+                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>{t('about')}</Text>
                 <View style={styles.aboutBlock}>
-                  <Text
-                    style={[
-                      styles.aboutName,
-                      { color: colors.text, textAlign: isRTL ? 'right' : 'left' },
-                    ]}
-                  >
-                    {t('aboutName')}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.aboutLine,
-                      { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
-                    ]}
-                  >
+                  <Text style={[styles.aboutName, { color: colors.text }]}>{t('aboutName')}</Text>
+                  <Text style={[styles.aboutLine, { color: colors.textSecondary }]}>
                     {t('aboutVersion')}
                   </Text>
-                  <Text
-                    style={[
-                      styles.aboutBody,
-                      {
-                        color: colors.textSecondary,
-                        textAlign: isRTL ? 'right' : 'left',
-                        writingDirection: textDir,
-                      },
-                    ]}
-                  >
-                    {t('aboutBody')}
-                  </Text>
+                  <Text style={[styles.aboutBody, { color: colors.textSecondary }]}>{t('aboutBody')}</Text>
                 </View>
               </>
             )}
@@ -305,70 +216,29 @@ const VaultHomeScreen = () => {
             {helpView === 'support' && (
               <>
                 <TouchableOpacity style={styles.backRow} onPress={() => setHelpView('main')}>
-                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>
-                    {t('backHelp')}
-                  </Text>
+                  <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>{t('backHelp')}</Text>
                 </TouchableOpacity>
-                <Text
-                  style={[
-                    styles.panelTitle,
-                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
-                  ]}
-                >
+                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>
                   {t('developerSupport')}
                 </Text>
-                <Text
-                  style={[
-                    styles.supportIntro,
-                    {
-                      color: colors.textSecondary,
-                      textAlign: isRTL ? 'right' : 'left',
-                      writingDirection: textDir,
-                    },
-                  ]}
-                >
+                <Text style={[styles.supportIntro, { color: colors.textSecondary }]}>
                   {t('supportIntro')}
                 </Text>
-                <TouchableOpacity
-                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
-                  onPress={openGithub}
-                >
+                <TouchableOpacity style={styles.row} onPress={openGithub}>
                   <Text style={{ fontSize: 16 }}>📦</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
-                    {t('githubRepo')}
-                  </Text>
+                  <Text style={[styles.rowLabel, { color: colors.text }]}>{t('githubRepo')}</Text>
                   <Text style={{ color: colors.tint, fontSize: 13, fontWeight: '600' }}>{t('open')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
-                  onPress={openEmail}
-                >
+                <TouchableOpacity style={styles.row} onPress={openEmail}>
                   <Text style={{ fontSize: 16 }}>✉️</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
-                    {t('emailDeveloper')}
-                  </Text>
+                  <Text style={[styles.rowLabel, { color: colors.text }]}>{t('emailDeveloper')}</Text>
                   <Text style={{ color: colors.tint, fontSize: 13, fontWeight: '600' }}>{t('mail')}</Text>
                 </TouchableOpacity>
-
-                <Text
-                  style={[
-                    styles.panelTitle,
-                    {
-                      color: colors.textSecondary,
-                      paddingTop: 8,
-                      textAlign: isRTL ? 'right' : 'left',
-                    },
-                  ]}
-                >
+                <Text style={[styles.panelTitle, { color: colors.textSecondary, paddingTop: 8 }]}>
                   {t('donateEthUsdt')}
                 </Text>
                 <View style={styles.walletBlock}>
-                  <Text
-                    style={[
-                      styles.walletHint,
-                      { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
-                    ]}
-                  >
+                  <Text style={[styles.walletHint, { color: colors.textSecondary }]}>
                     {t('walletHint')}
                   </Text>
                   <Text
@@ -384,7 +254,6 @@ const VaultHomeScreen = () => {
                         backgroundColor: walletCopied
                           ? colors.successBackground || colors.tint + '22'
                           : colors.tint + '18',
-                        alignSelf: isRTL ? 'flex-end' : 'flex-start',
                       },
                     ]}
                     onPress={copyWallet}
@@ -409,35 +278,18 @@ const VaultHomeScreen = () => {
           <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {settingsView === 'main' && (
               <>
-                <Text
-                  style={[
-                    styles.panelTitle,
-                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
-                  ]}
-                >
-                  {t('settings')}
-                </Text>
-                <TouchableOpacity
-                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
-                  onPress={() => setSettingsView('theme')}
-                >
+                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>{t('settings')}</Text>
+                <TouchableOpacity style={styles.row} onPress={() => setSettingsView('theme')}>
                   <Text style={{ fontSize: 16 }}>🎨</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
-                    {t('theme')}
-                  </Text>
+                  <Text style={[styles.rowLabel, { color: colors.text }]}>{t('theme')}</Text>
                   <Text style={[styles.rowValue, { color: colors.textSecondary }]}>{themeLabel}</Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>{isRTL ? '‹' : '›'}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.row, { flexDirection: rowDir as 'row' }]}
-                  onPress={() => setSettingsView('language')}
-                >
+                <TouchableOpacity style={styles.row} onPress={() => setSettingsView('language')}>
                   <Text style={{ fontSize: 16 }}>🌐</Text>
-                  <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
-                    {t('language')}
-                  </Text>
+                  <Text style={[styles.rowLabel, { color: colors.text }]}>{t('language')}</Text>
                   <Text style={[styles.rowValue, { color: colors.textSecondary }]}>{languageLabel}</Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>{isRTL ? '‹' : '›'}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -449,31 +301,18 @@ const VaultHomeScreen = () => {
                     {t('backSettings')}
                   </Text>
                 </TouchableOpacity>
-                <Text
-                  style={[
-                    styles.panelTitle,
-                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
-                  ]}
-                >
-                  {t('theme')}
-                </Text>
+                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>{t('theme')}</Text>
                 {themeOptions.map((opt) => (
                   <TouchableOpacity
                     key={opt.key}
-                    style={[
-                      styles.row,
-                      { flexDirection: rowDir as 'row' },
-                      mode === opt.key && { backgroundColor: colors.tint + '22' },
-                    ]}
+                    style={[styles.row, mode === opt.key && { backgroundColor: colors.tint + '22' }]}
                     onPress={() => {
                       setMode(opt.key);
                       closeSettings();
                     }}
                   >
                     <Text style={{ fontSize: 16 }}>{opt.icon}</Text>
-                    <Text style={[styles.rowLabel, { color: colors.text, textAlign: isRTL ? 'right' : 'left' }]}>
-                      {t(opt.labelKey)}
-                    </Text>
+                    <Text style={[styles.rowLabel, { color: colors.text }]}>{t(opt.labelKey)}</Text>
                     {mode === opt.key && <Text style={{ color: colors.tint }}>✓</Text>}
                   </TouchableOpacity>
                 ))}
@@ -487,38 +326,20 @@ const VaultHomeScreen = () => {
                     {t('backSettings')}
                   </Text>
                 </TouchableOpacity>
-                <Text
-                  style={[
-                    styles.panelTitle,
-                    { color: colors.textSecondary, textAlign: isRTL ? 'right' : 'left' },
-                  ]}
-                >
-                  {t('language')}
-                </Text>
+                <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>{t('language')}</Text>
                 {languageMeta.map((lang) => {
                   const active = language === lang.code;
                   return (
                     <TouchableOpacity
                       key={lang.code}
-                      style={[
-                        styles.row,
-                        { flexDirection: rowDir as 'row' },
-                        active && { backgroundColor: colors.tint + '22' },
-                      ]}
+                      style={[styles.row, active && { backgroundColor: colors.tint + '22' }]}
                       onPress={async () => {
                         await setLanguage(lang.code);
                         closeSettings();
                       }}
                     >
                       <Text style={{ fontSize: 16 }}>{lang.flag}</Text>
-                      <Text
-                        style={[
-                          styles.rowLabel,
-                          { color: colors.text, textAlign: isRTL ? 'right' : 'left' },
-                        ]}
-                      >
-                        {t(lang.labelKey)}
-                      </Text>
+                      <Text style={[styles.rowLabel, { color: colors.text }]}>{t(lang.labelKey)}</Text>
                       {active && <Text style={{ color: colors.tint }}>✓</Text>}
                     </TouchableOpacity>
                   );
@@ -573,10 +394,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  helpIcon: {
-    fontSize: 17,
-    fontWeight: '700',
-  },
+  helpIcon: { fontSize: 17, fontWeight: '700' },
   logoutText: { fontWeight: '600', fontSize: 15 },
   panel: {
     borderRadius: 12,
@@ -593,11 +411,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 4,
   },
-  backRow: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
+  backRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -614,11 +428,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     marginTop: -4,
   },
-  aboutBlock: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    paddingTop: 4,
-  },
+  aboutBlock: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4 },
   aboutName: { fontSize: 17, fontWeight: '700', marginBottom: 4 },
   aboutLine: { fontSize: 13, marginBottom: 10 },
   aboutBody: { fontSize: 14, lineHeight: 21 },
@@ -629,15 +439,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     paddingTop: 4,
   },
-  walletBlock: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    paddingTop: 4,
-  },
-  walletHint: {
-    fontSize: 13,
-    marginBottom: 8,
-  },
+  walletBlock: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4 },
+  walletHint: { fontSize: 13, marginBottom: 8 },
   walletAddress: {
     fontSize: 12,
     fontFamily: 'monospace',
@@ -648,6 +451,7 @@ const styles = StyleSheet.create({
   },
   copyWalletBtn: {
     marginTop: 10,
+    alignSelf: 'flex-start',
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 10,
