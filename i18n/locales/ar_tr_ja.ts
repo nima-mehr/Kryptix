@@ -1,8 +1,6 @@
-import type { TranslationKey } from '../translations';
+/** Arabic / Turkish / Japanese string packs — merged in i18n/i18n.ts */
 
-/** Arabic / Turkish / Japanese string packs — merged in translations.ts */
-
-export const arOverrides: Partial<Record<TranslationKey, string>> = {
+export const arOverrides: Record<string, string> = {
   cancel: 'إلغاء', close: 'إغلاق', save: 'حفظ', delete: 'حذف', remove: 'إزالة', edit: 'تعديل',
   copy: 'نسخ', copied: 'تم النسخ!', show: 'إظهار', hide: 'إخفاء', error: 'خطأ', success: 'نجاح',
   loading: 'جارٍ التحميل…', search: 'بحث…', logout: 'تسجيل الخروج', settings: 'الإعدادات', help: 'مساعدة',
@@ -82,7 +80,7 @@ export const arOverrides: Partial<Record<TranslationKey, string>> = {
   searchHardcoded: 'بحث بالاسم أو الملاحظات أو التشفير…',
 };
 
-export const trOverrides: Partial<Record<TranslationKey, string>> = {
+export const trOverrides: Record<string, string> = {
   cancel: 'İptal', close: 'Kapat', save: 'Kaydet', delete: 'Sil', remove: 'Kaldır', edit: 'Düzenle',
   copy: 'Kopyala', copied: 'Kopyalandı!', show: 'Göster', hide: 'Gizle', error: 'Hata', success: 'Başarılı',
   loading: 'Yükleniyor…', search: 'Ara…', logout: 'Çıkış', settings: 'Ayarlar', help: 'Yardım',
@@ -162,7 +160,7 @@ export const trOverrides: Partial<Record<TranslationKey, string>> = {
   searchHardcoded: 'Ad, not, şifreli metin ara…',
 };
 
-export const jaOverrides: Partial<Record<TranslationKey, string>> = {
+export const jaOverrides: Record<string, string> = {
   cancel: 'キャンセル', close: '閉じる', save: '保存', delete: '削除', remove: '削除', edit: '編集',
   copy: 'コピー', copied: 'コピーしました！', show: '表示', hide: '非表示', error: 'エラー', success: '成功',
   loading: '読み込み中…', search: '検索…', logout: 'ログアウト', settings: '設定', help: 'ヘルプ',

@@ -8,10 +8,8 @@ import { APP_LANGUAGES, isAppLanguage, type AppLanguage } from './languages';
 
 const en = baseTranslations.en;
 
-function merge(
-  overrides: Partial<Record<TranslationKey, string>>
-): Record<TranslationKey, string> {
-  return { ...en, ...overrides };
+function merge(overrides: Record<string, string>): Record<TranslationKey, string> {
+  return { ...en, ...(overrides as Partial<Record<TranslationKey, string>>) };
 }
 
 export type { AppLanguage, TranslationKey };
@@ -31,7 +29,7 @@ export const translations: Record<AppLanguage, Record<TranslationKey, string>> =
 
 export const languageMeta: {
   code: AppLanguage;
-  labelKey: TranslationKey;
+  labelKey: TranslationKey | 'arabic' | 'turkish' | 'japanese';
   flag: string;
 }[] = [
   ...baseMeta.map((m) => ({
@@ -39,35 +37,7 @@ export const languageMeta: {
     labelKey: m.labelKey,
     flag: m.flag,
   })),
-  { code: 'ar', labelKey: 'arabic' as TranslationKey, flag: '🇸🇦' },
-  { code: 'tr', labelKey: 'turkish' as TranslationKey, flag: '🇹🇷' },
-  { code: 'ja', labelKey: 'japanese' as TranslationKey, flag: '🇯🇵' },
+  { code: 'ar', labelKey: 'arabic', flag: '🇸🇦' },
+  { code: 'tr', labelKey: 'turkish', flag: '🇹🇷' },
+  { code: 'ja', labelKey: 'japanese', flag: '🇯🇵' },
 ];
-
-/** Fallback labels if old TranslationKey union lacks new language name keys */
-const LANG_NAME_FALLBACK: Partial<Record<AppLanguage, string>> = {
-  ar: 'Arabic',
-  tr: 'Turkish',
-  ja: 'Japanese',
-  en: 'English',
-  fa: 'Persian',
-  ru: 'Russian',
-  de: 'German',
-  fr: 'French',
-  zh: 'Chinese',
-};
-
-export function languageDisplayName(
-  code: AppLanguage,
-  t: (key: TranslationKey) => string
-): string {
-  const meta = languageMeta.find((m) => m.code === code);
-  if (!meta) return LANG_NAME_FALLBACK[code] ?? code;
-  try {
-    const label = t(meta.labelKey);
-    if (label && label !== String(meta.labelKey)) return label;
-  } catch {
-    // fall through
-  }
-  return LANG_NAME_FALLBACK[code] ?? code;
-}
