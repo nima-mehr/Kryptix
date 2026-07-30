@@ -35,9 +35,13 @@ const LoginScreen = () => {
   const [hasStoredPassword, setHasStoredPassword] = useState(false);
   const [checkingBiometric, setCheckingBiometric] = useState(true);
   const [introReady, setIntroReady] = useState(false);
+  // Position relative to the login container (not window)
   const [logoCenter, setLogoCenter] = useState<{ x: number; y: number } | undefined>(
     undefined
   );
+
+  const containerRef = useRef<View>(null);
+  const sphereAnchorRef = useRef<View>(null);
 
   const unlock = useCallback(() => {
     router.replace('/dashboard');
@@ -74,13 +78,14 @@ const LoginScreen = () => {
     };
   }, [refreshBiometricState]);
 
-  const sphereAnchorRef = useRef<View>(null);
-
-  const onSphereAnchorLayout = () => {
-    sphereAnchorRef.current?.measureInWindow((x, y, width, height) => {
-      setLogoCenter({
-        x: x + width / 2,
-        y: y + height / 2,
+  const measureLogoTarget = () => {
+    // Convert window coords → container-relative so absolute positioning is correct
+    containerRef.current?.measureInWindow((cX, cY) => {
+      sphereAnchorRef.current?.measureInWindow((x, y, width, height) => {
+        setLogoCenter({
+          x: x + width / 2 - cX,
+          y: y + height / 2 - cY,
+        });
       });
     });
   };
@@ -148,6 +153,7 @@ const LoginScreen = () => {
 
   return (
     <View
+      ref={containerRef}
       style={[
         styles.container,
         {
@@ -156,6 +162,7 @@ const LoginScreen = () => {
           paddingBottom: insets.bottom,
         },
       ]}
+      onLayout={measureLogoTarget}
     >
       <IntroSphereAnimation
         logoCenterX={logoCenter?.x}
@@ -163,11 +170,11 @@ const LoginScreen = () => {
         onReady={() => setIntroReady(true)}
       />
 
-      <View style={styles.titleRow}>
+      <View style={styles.titleRow} onLayout={measureLogoTarget}>
         <View
           ref={sphereAnchorRef}
           style={styles.sphereAnchor}
-          onLayout={onSphereAnchorLayout}
+          onLayout={measureLogoTarget}
           collapsable={false}
         />
         <Text style={[styles.title, { color: colors.text }]}>KRYPTIX</Text>
@@ -265,18 +272,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 10,
-    gap: 10,
+    gap: 12,
   },
+  // Landing pad for the sphere – same height as title so vertical centers match
   sphereAnchor: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
   },
   title: {
-    fontSize: 34,
-    fontWeight: '700',
-    fontFamily: 'Orbitron_700Bold',
-    letterSpacing: 3,
-    textTransform: 'uppercase',
+    fontSize: 32,
+    fontFamily: 'Orbitron',
+    letterSpacing: 4,
+    // no fontWeight – the loaded face is already Bold
   },
   subtitle: {
     fontSize: 16,
