@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -34,7 +35,8 @@ const LoginScreen = () => {
   const [biometricEnabled, setBiometricEnabledState] = useState(false);
   const [hasStoredPassword, setHasStoredPassword] = useState(false);
   const [checkingBiometric, setCheckingBiometric] = useState(true);
-  const [showIntro, setShowIntro] = useState(true);
+  const [introReady, setIntroReady] = useState(false);
+  const [logoCenterY, setLogoCenterY] = useState<number | undefined>(undefined);
 
   const unlock = useCallback(() => {
     router.replace('/dashboard');
@@ -70,6 +72,12 @@ const LoginScreen = () => {
       cancelled = true;
     };
   }, [refreshBiometricState]);
+
+  const onLogoSlotLayout = (e: LayoutChangeEvent) => {
+    const { y, height } = e.nativeEvent.layout;
+    // y is relative to parent; parent has paddingTop = insets.top
+    setLogoCenterY(insets.top + y + height / 2);
+  };
 
   const onBiometricPress = async () => {
     setIsLoading(true);
@@ -143,11 +151,15 @@ const LoginScreen = () => {
         },
       ]}
     >
-      {showIntro && (
-        <IntroSphereAnimation onFinish={() => setShowIntro(false)} />
-      )}
+      <IntroSphereAnimation
+        logoCenterY={logoCenterY}
+        onReady={() => setIntroReady(true)}
+      />
 
-      <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix</Text>
+      {/* Logo landing zone – measured so the sphere can fly exactly here */}
+      <View style={styles.logoSlot} onLayout={onLogoSlotLayout} />
+
+      <Text style={[styles.title, { color: colors.text }]}>Kryptix</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
         Your Offline Password Manager
       </Text>
@@ -166,7 +178,7 @@ const LoginScreen = () => {
         value={masterPassword}
         onChangeText={setMasterPassword}
         secureTextEntry
-        autoFocus={!checkingBiometric && !showIntro}
+        autoFocus={introReady && !checkingBiometric}
         editable={!isLoading}
         onSubmitEditing={handleLogin}
       />
@@ -234,6 +246,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 30,
+  },
+  logoSlot: {
+    height: 52,
+    marginBottom: 6,
   },
   title: {
     fontSize: 36,
