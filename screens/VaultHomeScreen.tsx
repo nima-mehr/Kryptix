@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import VaultSectionTabs, { VaultSection } from '../components/VaultSectionTabs';
+import KryptixSphereLogo from '../components/KryptixSphereLogo';
 import { ThemeMode, useTheme } from '../context/ThemeContext';
 import DashboardScreen from './DashboardScreen';
 import HardcodedPasswordPanel from './panels/HardcodedPasswordPanel';
@@ -38,7 +39,10 @@ const VaultHomeScreen = () => {
     >
       <View style={styles.pad}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix Vault</Text>
+          <View style={styles.titleRow}>
+            <KryptixSphereLogo size={32} />
+            <Text style={[styles.title, { color: colors.text }]}>KRYPTIX VAULT</Text>
+          </View>
           <View style={styles.headerRight}>
             <TouchableOpacity
               style={[styles.themeBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -98,7 +102,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  title: { fontSize: 22, fontWeight: 'bold' },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
+  },
+  title: {
+    fontSize: 18,
+    fontFamily: 'Orbitron',
+    letterSpacing: 1.5,
+  },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   themeBtn: {
     width: 36,
