@@ -14,6 +14,10 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import SelectAllSearchBar, {
+  BulkActionText,
+  BulkActionsRow,
+} from '../components/SelectAllSearchBar';
 import { ThemeMode, useTheme } from '../context/ThemeContext';
 import {
   addCategory,
@@ -379,6 +383,7 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
   };
 
   const toggleSelectAllFiltered = () => {
+    if (filteredVault.length === 0) return;
     if (allFilteredSelected) {
       setSelectedIds((prev) => {
         const next = { ...prev };
@@ -806,18 +811,6 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
           <Text style={[styles.title, { color: colors.text }]}>🔐 Kryptix Vault</Text>
           <View style={styles.headerRight}>
             <TouchableOpacity
-              style={[
-                styles.themeBtn,
-                {
-                  backgroundColor: showSearch ? colors.tint + '22' : colors.card,
-                  borderColor: showSearch ? colors.tint : colors.border,
-                },
-              ]}
-              onPress={toggleSearch}
-            >
-              <Text style={{ fontSize: 16 }}>🔍</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               style={[styles.themeBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => {
                 setShowThemePicker(!showThemePicker);
@@ -833,48 +826,7 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
             </TouchableOpacity>
           </View>
         </View>
-      ) : (
-        <View style={styles.embeddedToolbar}>
-          <TouchableOpacity
-            style={[
-              styles.themeBtn,
-              {
-                backgroundColor: showSearch ? colors.tint + '22' : colors.card,
-                borderColor: showSearch ? colors.tint : colors.border,
-              },
-            ]}
-            onPress={toggleSearch}
-          >
-            <Text style={{ fontSize: 16 }}>🔍</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {showSearch && (
-        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search name, url, username, note…"
-            placeholderTextColor={colors.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoFocus
-            autoCapitalize="none"
-            autoCorrect={false}
-            clearButtonMode="while-editing"
-          />
-          {hasActiveSearch ? (
-            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={{ color: colors.textSecondary, fontWeight: '700', fontSize: 16 }}>✕</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={closeSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )}
+      ) : null}
 
       {!embedded && showThemePicker && (
         <View style={[styles.themePicker, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1194,42 +1146,55 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
         </View>
       </View>
 
-      {filteredVault.length > 0 && (
-        <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TouchableOpacity onPress={toggleSelectAllFiltered} style={styles.selectBarLeft}>
-            <View
-              style={[
-                styles.checkbox,
-                {
-                  borderColor: colors.tint,
-                  backgroundColor: allFilteredSelected ? colors.tint : 'transparent',
-                },
-              ]}
-            >
-              {allFilteredSelected ? <Text style={styles.checkmark}>✓</Text> : null}
-            </View>
-            <Text style={[styles.selectBarText, { color: colors.text }]}>
-              {selectedCount > 0 ? `${selectedCount} selected` : 'Select all'}
-            </Text>
-          </TouchableOpacity>
+      <SelectAllSearchBar
+        selectedCount={selectedCount}
+        allSelected={allFilteredSelected}
+        hasItems={filteredVault.length > 0}
+        showSearch={showSearch}
+        onToggleSelectAll={toggleSelectAllFiltered}
+        onToggleSearch={toggleSearch}
+        actions={
+          selectedCount > 0 ? (
+            <BulkActionsRow>
+              <BulkActionText color={colors.textSecondary} onPress={clearSelection}>
+                Clear
+              </BulkActionText>
+              <BulkActionText color={colors.tint} onPress={() => setShowBulkCategoryModal(true)}>
+                Move
+              </BulkActionText>
+              <BulkActionText color={colors.tint} onPress={handleBulkFavorite}>
+                {selectedAllFavorited ? 'Unstar' : 'Star'}
+              </BulkActionText>
+              <BulkActionText color={colors.danger} onPress={handleBulkDelete}>
+                Delete
+              </BulkActionText>
+            </BulkActionsRow>
+          ) : null
+        }
+      />
 
-          {selectedCount > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectBarActions}>
-              <TouchableOpacity onPress={clearSelection}>
-                <Text style={[styles.selectBarAction, { color: colors.textSecondary }]}>Clear</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowBulkCategoryModal(true)}>
-                <Text style={[styles.selectBarAction, { color: colors.tint }]}>Move</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleBulkFavorite}>
-                <Text style={[styles.selectBarAction, { color: colors.tint }]}>
-                  {selectedAllFavorited ? 'Unstar' : 'Star'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleBulkDelete}>
-                <Text style={[styles.selectBarAction, { color: colors.danger }]}>Delete</Text>
-              </TouchableOpacity>
-            </ScrollView>
+      {showSearch && (
+        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search name, url, username, note…"
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+          />
+          {hasActiveSearch ? (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ color: colors.textSecondary, fontWeight: '700', fontSize: 16 }}>✕</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={closeSearch} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
+            </TouchableOpacity>
           )}
         </View>
       )}
@@ -1394,11 +1359,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  embeddedToolbar: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginBottom: 8,
-  },
   title: { fontSize: 22, fontWeight: 'bold' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   themeBtn: {
@@ -1489,21 +1449,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   categoryConfirmText: { fontSize: 12, fontWeight: '700' },
-  selectBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 12,
-    gap: 8,
-  },
-  selectBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0 },
-  selectBarText: { fontSize: 14, fontWeight: '600' },
-  selectBarActions: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingLeft: 4 },
-  selectBarAction: { fontSize: 14, fontWeight: '700' },
   checkbox: {
     width: 22,
     height: 22,
