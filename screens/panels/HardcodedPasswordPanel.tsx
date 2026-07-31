@@ -10,12 +10,13 @@ import {
   View,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import {
   ENCRYPTION_OPTIONS,
   type EncryptionAlgorithm,
   type HardcodedPasswordEntry,
 } from '../../types/hardcoded';
-import { algorithmLabel, encryptPassword } from '../../utils/encryption';
+import { encryptPassword } from '../../utils/encryption';
 import {
   addHardcodedPassword,
   deleteHardcodedPassword,
@@ -23,13 +24,24 @@ import {
   updateHardcodedPassword,
 } from '../../utils/hardcoded';
 
+const ALGO_LABEL_KEY: Record<EncryptionAlgorithm, string> = {
+  aes256: 'aes256',
+  xor: 'xorPassphrase',
+  base64: 'base64',
+};
+const ALGO_DESC_KEY: Record<EncryptionAlgorithm, string> = {
+  aes256: 'aesDesc',
+  xor: 'xorDesc',
+  base64: 'base64Desc',
+};
+
 const HardcodedPasswordPanel = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
 
   const [entries, setEntries] = useState<HardcodedPasswordEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Form
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [encryptionKey, setEncryptionKey] = useState('');
@@ -43,7 +55,6 @@ const HardcodedPasswordPanel = () => {
   const [encrypting, setEncrypting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // List UI — decrypted only after explicit Decrypt
   const [decryptedIds, setDecryptedIds] = useState<Record<string, boolean>>({});
   const [visibleCipher, setVisibleCipher] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -79,7 +90,6 @@ const HardcodedPasswordPanel = () => {
     })();
   }, [refresh]);
 
-  // Live ciphertext preview when password / algo / key change
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
@@ -101,10 +111,10 @@ const HardcodedPasswordPanel = () => {
         if (!cancelled) setEncrypting(false);
       }
     };
-    const t = setTimeout(run, 200);
+    const timer = setTimeout(run, 200);
     return () => {
       cancelled = true;
-      clearTimeout(t);
+      clearTimeout(timer);
     };
   }, [password, algorithm, encryptionKey, needsKey]);
 
@@ -138,11 +148,11 @@ const HardcodedPasswordPanel = () => {
 
   const handleSave = async () => {
     if (!name.trim() || !password) {
-      Alert.alert('Error', 'Please enter a name and password');
+      Alert.alert(t('error'), t('enterNameAndPassword'));
       return;
     }
     if (needsKey && !encryptionKey) {
-      Alert.alert('Error', `${selectedAlgo.label} requires an encryption key`);
+      Alert.alert(t('error'), t('algoRequiresKey', { algo: t(ALGO_LABEL_KEY[algorithm]) }));
       return;
     }
 
@@ -150,7 +160,7 @@ const HardcodedPasswordPanel = () => {
       setEncrypting(true);
       const result = await encryptPassword(password, algorithm, encryptionKey);
       if (!result.ciphertext) {
-        Alert.alert('Error', 'Encryption produced an empty result');
+        Alert.alert(t('error'), t('encryptionEmpty'));
         return;
       }
 
@@ -167,7 +177,6 @@ const HardcodedPasswordPanel = () => {
 
       if (isEditing && editingId) {
         await updateHardcodedPassword(editingId, payload);
-        // Hide decrypted view after update
         setDecryptedIds((prev) => {
           const next = { ...prev };
           delete next[editingId];
@@ -179,8 +188,8 @@ const HardcodedPasswordPanel = () => {
       await refresh();
       clearForm();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Failed to save';
-      Alert.alert('Error', msg);
+      const msg = e instanceof Error ? e.message : t('failedSavePassword');
+      Alert.alert(t('error'), msg);
     } finally {
       setEncrypting(false);
     }
@@ -198,7 +207,7 @@ const HardcodedPasswordPanel = () => {
       });
       if (editingId === id) clearForm();
     } catch {
-      Alert.alert('Error', 'Could not delete entry');
+      Alert.alert(t('error'), t('couldNotDeleteEntry'));
     }
   };
 
@@ -207,13 +216,13 @@ const HardcodedPasswordPanel = () => {
       await updateHardcodedPassword(entry.id, { favorite: !entry.favorite });
       await refresh();
     } catch {
-      Alert.alert('Error', 'Could not update favorite');
+      Alert.alert(t('error'), t('couldNotUpdateFavorite'));
     }
   };
 
   const copyText = (text: string, id: string, allowed: boolean) => {
     if (!allowed) {
-      Alert.alert('Copy disabled', 'Copy/paste is turned off for this entry.');
+      Alert.alert(t('copyDisabled'), t('copyDisabledMsg'));
       return;
     }
     if (!text) return;
@@ -232,7 +241,7 @@ const HardcodedPasswordPanel = () => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={{ color: colors.textSecondary }}>Loading hardcoded passwords…</Text>
+        <Text style={{ color: colors.textSecondary }}>{t('loadingHardcoded')}</Text>
       </View>
     );
   }
@@ -242,14 +251,14 @@ const HardcodedPasswordPanel = () => {
       <View style={[styles.form, { backgroundColor: colors.card, borderColor: colors.danger + '55' }]}>
         {isEditing && (
           <View style={styles.editingBanner}>
-            <Text style={[styles.editingText, { color: colors.danger }]}>Editing entry</Text>
+            <Text style={[styles.editingText, { color: colors.danger }]}>{t('editingEntry')}</Text>
             <TouchableOpacity onPress={clearForm}>
-              <Text style={{ color: colors.textSecondary, fontWeight: '500' }}>Cancel</Text>
+              <Text style={{ color: colors.textSecondary, fontWeight: '500' }}>{t('cancel')}</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>1. Copy / paste</Text>
+        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('copyPaste')}</Text>
         <View style={styles.toggleRow}>
           <TouchableOpacity
             style={[
@@ -262,7 +271,7 @@ const HardcodedPasswordPanel = () => {
             onPress={() => setAllowCopy(true)}
           >
             <Text style={{ color: allowCopy ? colors.tint : colors.text, fontWeight: '600', fontSize: 13 }}>
-              Allow copy
+              {t('allowCopy')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -282,12 +291,12 @@ const HardcodedPasswordPanel = () => {
                 fontSize: 13,
               }}
             >
-              Block copy
+              {t('blockCopy')}
             </Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>2. Encryption method</Text>
+        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('encryptionMethod')}</Text>
         <View style={styles.algoList}>
           {ENCRYPTION_OPTIONS.map((opt) => {
             const active = algorithm === opt.value;
@@ -304,18 +313,20 @@ const HardcodedPasswordPanel = () => {
                 onPress={() => setAlgorithm(opt.value)}
               >
                 <Text style={[styles.algoLabel, { color: active ? colors.tint : colors.text }]}>
-                  {opt.label}
+                  {t(ALGO_LABEL_KEY[opt.value])}
                 </Text>
-                <Text style={[styles.algoDesc, { color: colors.textSecondary }]}>{opt.description}</Text>
+                <Text style={[styles.algoDesc, { color: colors.textSecondary }]}>
+                  {t(ALGO_DESC_KEY[opt.value])}
+                </Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>3. Entry</Text>
+        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{t('entry')}</Text>
 
         <TextInput
-          placeholder="Name (e.g. Emergency bank PIN)"
+          placeholder={t('nameEmergency')}
           placeholderTextColor={colors.textSecondary}
           value={name}
           onChangeText={setName}
@@ -331,7 +342,7 @@ const HardcodedPasswordPanel = () => {
 
         <View style={styles.passwordRow}>
           <TextInput
-            placeholder="Password (plaintext)"
+            placeholder={t('passwordPlaintext')}
             placeholderTextColor={colors.textSecondary}
             value={password}
             onChangeText={setPassword}
@@ -354,7 +365,7 @@ const HardcodedPasswordPanel = () => {
             disabled={!password}
           >
             <Text style={[styles.smallBtnText, { color: colors.tint }]}>
-              {showFormPassword ? 'Hide' : 'Show'}
+              {showFormPassword ? t('hide') : t('show')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -362,7 +373,7 @@ const HardcodedPasswordPanel = () => {
         {needsKey && (
           <View style={styles.passwordRow}>
             <TextInput
-              placeholder="Encryption key / passphrase"
+              placeholder={t('encryptionKey')}
               placeholderTextColor={colors.textSecondary}
               value={encryptionKey}
               onChangeText={setEncryptionKey}
@@ -389,7 +400,7 @@ const HardcodedPasswordPanel = () => {
               disabled={!encryptionKey}
             >
               <Text style={[styles.smallBtnText, { color: colors.tint }]}>
-                {showFormKey ? 'Hide' : 'Show'}
+                {showFormKey ? t('hide') : t('show')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -399,11 +410,11 @@ const HardcodedPasswordPanel = () => {
           <View style={[styles.previewBox, { borderColor: colors.border, backgroundColor: colors.inputBackground }]}>
             <View style={styles.previewHeader}>
               <Text style={[styles.previewTitle, { color: colors.textSecondary }]}>
-                Encrypted preview {encrypting ? '(…)' : ''}
+                {t('encryptedPreview')} {encrypting ? '(…)' : ''}
               </Text>
               <TouchableOpacity onPress={() => setShowPreviewCipher((v) => !v)} disabled={!previewCipher}>
                 <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 13 }}>
-                  {showPreviewCipher ? 'Hide' : 'Show'}
+                  {showPreviewCipher ? t('hide') : t('show')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -418,7 +429,7 @@ const HardcodedPasswordPanel = () => {
         )}
 
         <TextInput
-          placeholder="Note (optional)"
+          placeholder={t('noteOptional')}
           placeholderTextColor={colors.textSecondary}
           value={notes}
           onChangeText={setNotes}
@@ -444,14 +455,14 @@ const HardcodedPasswordPanel = () => {
           disabled={encrypting}
         >
           <Text style={styles.saveBtnText}>
-            {encrypting ? 'Encrypting…' : isEditing ? 'Update entry' : 'Encrypt & save'}
+            {encrypting ? t('encrypting') : isEditing ? t('updateEntry') : t('encryptAndSave')}
           </Text>
         </TouchableOpacity>
       </View>
 
       <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[styles.selectBarText, { color: colors.danger }]}>
-          Hardcoded ({entries.length})
+          {t('hardcodedCount', { count: entries.length })}
         </Text>
         <TouchableOpacity
           style={[
@@ -476,7 +487,7 @@ const HardcodedPasswordPanel = () => {
         <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search name, notes, cipher…"
+            placeholder={t('searchHardcoded')}
             placeholderTextColor={colors.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -490,7 +501,7 @@ const HardcodedPasswordPanel = () => {
               setSearchQuery('');
             }}
           >
-            <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
+            <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>{t('close')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -528,7 +539,7 @@ const HardcodedPasswordPanel = () => {
         <View style={styles.metaRow}>
           <View style={[styles.badge, { backgroundColor: colors.tint + '22' }]}>
             <Text style={[styles.badgeText, { color: colors.tint }]}>
-              {algorithmLabel(item.algorithm)}
+              {t(ALGO_LABEL_KEY[item.algorithm])}
             </Text>
           </View>
           <View
@@ -545,18 +556,18 @@ const HardcodedPasswordPanel = () => {
                 { color: item.allowCopy ? colors.success : colors.danger },
               ]}
             >
-              {item.allowCopy ? 'Copy OK' : 'No copy'}
+              {item.allowCopy ? t('copyOk') : t('noCopy')}
             </Text>
           </View>
         </View>
 
-        <Text style={[styles.label, { color: colors.textSecondary }]}>Decrypted password</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{t('decryptedPassword')}</Text>
         {!isDecrypted ? (
           <TouchableOpacity
             style={[styles.decryptBtn, { backgroundColor: colors.tint }]}
             onPress={() => setDecryptedIds((p) => ({ ...p, [item.id]: true }))}
           >
-            <Text style={styles.decryptBtnText}>Decrypt</Text>
+            <Text style={styles.decryptBtnText}>{t('decrypt')}</Text>
           </TouchableOpacity>
         ) : (
           <>
@@ -571,7 +582,7 @@ const HardcodedPasswordPanel = () => {
                   })
                 }
               >
-                <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 13 }}>Hide</Text>
+                <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 13 }}>{t('hide')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => copyText(item.password, item.id + '-plain', item.allowCopy)}
@@ -588,21 +599,21 @@ const HardcodedPasswordPanel = () => {
                     opacity: item.allowCopy ? 1 : 0.45,
                   }}
                 >
-                  {plainCopied ? 'Copied!' : 'Copy'}
+                  {plainCopied ? t('copied') : t('copy')}
                 </Text>
               </TouchableOpacity>
             </View>
           </>
         )}
 
-        <Text style={[styles.label, { color: colors.textSecondary }]}>Encrypted value</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{t('encryptedValue')}</Text>
         <Text style={[styles.cipherValue, { color: colors.text }]} selectable={item.allowCopy}>
           {mask(item.ciphertext, cipherOn)}
         </Text>
         <View style={styles.inlineActions}>
           <TouchableOpacity onPress={() => setVisibleCipher((p) => ({ ...p, [item.id]: !cipherOn }))}>
             <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 13 }}>
-              {cipherOn ? 'Hide' : 'Show'}
+              {cipherOn ? t('hide') : t('show')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -620,14 +631,14 @@ const HardcodedPasswordPanel = () => {
                 opacity: item.allowCopy ? 1 : 0.45,
               }}
             >
-              {cipherCopied ? 'Copied!' : 'Copy'}
+              {cipherCopied ? t('copied') : t('copy')}
             </Text>
           </TouchableOpacity>
         </View>
 
         {item.notes ? (
           <>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Note</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{t('note')}</Text>
             <Text style={[styles.value, { color: colors.text }]}>{item.notes}</Text>
           </>
         ) : null}
@@ -639,13 +650,13 @@ const HardcodedPasswordPanel = () => {
                 style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
                 onPress={() => startEdit(item)}
               >
-                <Text style={[styles.actionText, { color: colors.tint }]}>Edit</Text>
+                <Text style={[styles.actionText, { color: colors.tint }]}>{t('edit')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
                 onPress={() => setConfirmingDeleteId(item.id)}
               >
-                <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
+                <Text style={[styles.actionText, { color: colors.danger }]}>{t('delete')}</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -654,13 +665,13 @@ const HardcodedPasswordPanel = () => {
                 style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
                 onPress={() => setConfirmingDeleteId(null)}
               >
-                <Text style={[styles.actionText, { color: colors.text }]}>Cancel</Text>
+                <Text style={[styles.actionText, { color: colors.text }]}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
                 onPress={() => confirmDelete(item.id)}
               >
-                <Text style={[styles.actionText, { color: colors.danger }]}>Remove</Text>
+                <Text style={[styles.actionText, { color: colors.danger }]}>{t('remove')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -670,8 +681,8 @@ const HardcodedPasswordPanel = () => {
   };
 
   const emptyMessage = searchQuery.trim()
-    ? `No results for "${searchQuery.trim()}".`
-    : 'No hardcoded passwords yet.\nChoose copy policy + algorithm, then encrypt & save.';
+    ? t('noResultsFor', { query: searchQuery.trim() })
+    : t('noHardcodedYet');
 
   return (
     <View style={styles.container}>
