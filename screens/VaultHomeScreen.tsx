@@ -24,6 +24,7 @@ const FAQ_KEYS: { q: TranslationKey; a: TranslationKey }[] = [
   { q: 'faq4q', a: 'faq4a' },
   { q: 'faq5q', a: 'faq5a' },
   { q: 'faq6q', a: 'faq6a' },
+  { q: 'faq7q', a: 'faq7a' },
 ];
 
 const VaultHomeScreen = () => {
