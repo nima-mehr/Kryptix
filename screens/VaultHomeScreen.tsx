@@ -7,7 +7,7 @@ import KryptixSphereLogo from '../components/KryptixSphereLogo';
 import KryptixBackupModal from '../components/KryptixBackupModal';
 import { ThemeMode, useTheme } from '../context/ThemeContext';
 import { languageMeta, useLanguage } from '../context/LanguageContext';
-import type { TranslationKey } from '../i18n/translations';
+import type { TranslationKey } from '../i18n/i18n';
 import DashboardScreen from './DashboardScreen';
 import HardcodedPasswordPanel from './panels/HardcodedPasswordPanel';
 import RecoveryPhrasesPanel from './panels/RecoveryPhrasesPanel';
@@ -17,7 +17,8 @@ type HelpView = 'main' | 'faq' | 'about' | 'support';
 
 const SUPPORT_WALLET = '0xe9e9603Ca0677669b2bFd02AC4eE286e2764AA33';
 
-const FAQ_KEYS: { q: TranslationKey; a: TranslationKey }[] = [
+/** FAQ keys — faq7 lives in i18n/faqOverrides.ts and is merged at runtime */
+const FAQ_KEYS: { q: string; a: string }[] = [
   { q: 'faq1q', a: 'faq1a' },
   { q: 'faq2q', a: 'faq2a' },
   { q: 'faq3q', a: 'faq3a' },
