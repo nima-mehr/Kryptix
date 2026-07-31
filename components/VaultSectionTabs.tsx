@@ -53,7 +53,9 @@ const VaultSectionTabs = ({ section, onChange }: Props) => {
                   fontWeight: active || tab.danger ? '700' : '600',
                 },
               ]}
-              numberOfLines={1}
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
             >
               {t(tab.labelKey)}
             </Text>
@@ -74,15 +76,17 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
+    minHeight: 44,
   },
   label: {
     fontSize: 12,
+    lineHeight: 15,
     textAlign: 'center',
   },
 });
