@@ -239,52 +239,6 @@ const HardcodedPasswordPanel = () => {
 
   const listHeader = (
     <>
-      <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.selectBarText, { color: colors.danger }]}>
-          Hardcoded ({entries.length})
-        </Text>
-        <TouchableOpacity
-          style={[
-            styles.searchIconBtn,
-            {
-              backgroundColor: showSearch ? colors.tint + '22' : 'transparent',
-              borderColor: showSearch ? colors.tint : colors.border,
-            },
-          ]}
-          onPress={() => {
-            if (showSearch) {
-              setShowSearch(false);
-              setSearchQuery('');
-            } else setShowSearch(true);
-          }}
-        >
-          <Text style={{ fontSize: 15 }}>🔍</Text>
-        </TouchableOpacity>
-      </View>
-
-      {showSearch && (
-        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search name, notes, cipher…"
-            placeholderTextColor={colors.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoFocus
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity
-            onPress={() => {
-              setShowSearch(false);
-              setSearchQuery('');
-            }}
-          >
-            <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       <View style={[styles.form, { backgroundColor: colors.card, borderColor: colors.danger + '55' }]}>
         {isEditing && (
           <View style={styles.editingBanner}>
@@ -494,6 +448,52 @@ const HardcodedPasswordPanel = () => {
           </Text>
         </TouchableOpacity>
       </View>
+
+      <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.selectBarText, { color: colors.danger }]}>
+          Hardcoded ({entries.length})
+        </Text>
+        <TouchableOpacity
+          style={[
+            styles.searchIconBtn,
+            {
+              backgroundColor: showSearch ? colors.tint + '22' : 'transparent',
+              borderColor: showSearch ? colors.tint : colors.border,
+            },
+          ]}
+          onPress={() => {
+            if (showSearch) {
+              setShowSearch(false);
+              setSearchQuery('');
+            } else setShowSearch(true);
+          }}
+        >
+          <Text style={{ fontSize: 15 }}>🔍</Text>
+        </TouchableOpacity>
+      </View>
+
+      {showSearch && (
+        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search name, notes, cipher…"
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity
+            onPress={() => {
+              setShowSearch(false);
+              setSearchQuery('');
+            }}
+          >
+            <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </>
   );
 
