@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,12 +29,24 @@ type Props = {
   onClose: () => void;
 };
 
+const IOS_SHARE_STEPS = [
+  'After you tap Encrypt & share, the iOS share sheet opens with your .kryptix file.',
+  'To keep a local copy: swipe the app row and choose Save to Files → pick On My iPhone / iCloud Drive → Save.',
+  'To send to another device: use AirDrop, Mail, or Messages. Only share with people you trust — the file is encrypted, but the passphrase is still required to open it.',
+  'To import later: open Kryptix → Settings → Backup → Import .kryptix → Choose file → browse Files app and select the .kryptix backup.',
+  'Tip: remember your export passphrase separately. Without it the backup cannot be decrypted.',
+];
+
+const ANDROID_SHARE_HINT =
+  'On Android the system share sheet appears after export. Choose Files, Drive, or another app to store the .kryptix backup.';
+
 const KryptixBackupModal = ({ visible, onClose }: Props) => {
   const { colors } = useTheme();
   const { t } = useLanguage();
   const [mode, setMode] = useState<Mode>('menu');
   const [busy, setBusy] = useState(false);
   const [counts, setCounts] = useState({ passwords: 0, recovery: 0, hardcoded: 0 });
+  const [showShareGuide, setShowShareGuide] = useState(false);
 
   const [sections, setSections] = useState<KryptixSectionFlags>({
     passwords: true,
@@ -58,6 +71,7 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
     setPicked(null);
     setPayload(null);
     setImportMode('merge');
+    setShowShareGuide(false);
     setSections({ passwords: true, recovery: true, hardcoded: true });
     getSectionCounts().then(setCounts).catch(() => {});
   }, [visible]);
@@ -87,7 +101,12 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
     setBusy(true);
     try {
       await exportKryptixVault(sections, passphrase);
-      Alert.alert(t('success'), 'Encrypted .kryptix file ready to share');
+      Alert.alert(
+        t('success'),
+        Platform.OS === 'ios'
+          ? 'Share sheet opened. Use Save to Files to keep the .kryptix backup on this device.'
+          : 'Encrypted .kryptix file ready to share.'
+      );
       onClose();
     } catch (e: any) {
       Alert.alert(t('exportFailed'), e?.message || t('couldNotExport'));
@@ -104,7 +123,6 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
       setPicked(result);
       setPayload(null);
       setPassphrase('');
-      // Pre-select sections based on file meta
       setSections({
         passwords: result.file.meta?.includePasswords !== false,
         recovery: result.file.meta?.includeRecovery !== false,
@@ -214,6 +232,46 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
     );
   };
 
+  const ShareSheetGuide = () => (
+    <View
+      style={[
+        styles.guideBox,
+        { backgroundColor: colors.tint + '12', borderColor: colors.border },
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.guideHeader}
+        onPress={() => setShowShareGuide((v) => !v)}
+        accessibilityRole="button"
+      >
+        <Text style={[styles.guideTitle, { color: colors.text }]}>
+          {Platform.OS === 'ios' ? 'iOS share sheet guide' : 'Share sheet guide'}
+        </Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
+          {showShareGuide ? '▾' : '›'}
+        </Text>
+      </TouchableOpacity>
+      {showShareGuide && (
+        <View style={styles.guideBody}>
+          {Platform.OS === 'ios' ? (
+            IOS_SHARE_STEPS.map((step, i) => (
+              <View key={i} style={styles.guideStepRow}>
+                <Text style={[styles.guideStepNum, { color: colors.tint }]}>{i + 1}.</Text>
+                <Text style={[styles.guideStepText, { color: colors.textSecondary }]}>{step}</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={[styles.guideStepText, { color: colors.textSecondary }]}>
+              {ANDROID_SHARE_HINT}
+              {'\n\n'}
+              For iPhone/iPad: Save to Files is the safest way to keep a local backup. AirDrop or Mail work for moving the file; always use a strong export passphrase.
+            </Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <View style={styles.overlay}>
@@ -225,6 +283,7 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
                 <Text style={[styles.sub, { color: colors.textSecondary }]}>
                   Encrypted .kryptix file for full vault transfer (mobile, desktop, extension).
                 </Text>
+                <ShareSheetGuide />
                 <TouchableOpacity
                   style={[styles.primaryBtn, { backgroundColor: colors.tint }]}
                   onPress={() => setMode('export')}
@@ -249,6 +308,8 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
                 <Text style={[styles.sub, { color: colors.textSecondary }]}>
                   Choose sections and an export passphrase (can differ from master password).
                 </Text>
+
+                <ShareSheetGuide />
 
                 <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Sections</Text>
                 <SectionRow label={t('tabPasswords')} count={counts.passwords} sectionKey="passwords" />
@@ -319,6 +380,11 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
                   <Text style={{ color: colors.tint, fontWeight: '600' }}>← Back</Text>
                 </TouchableOpacity>
                 <Text style={[styles.title, { color: colors.text }]}>Import .kryptix</Text>
+                <Text style={[styles.sub, { color: colors.textSecondary }]}>
+                  {Platform.OS === 'ios'
+                    ? 'Choose file opens the document picker. Browse the Files app for a .kryptix backup you saved earlier.'
+                    : 'Choose a .kryptix backup from your device storage.'}
+                </Text>
 
                 {!picked && (
                   <TouchableOpacity
@@ -459,6 +525,24 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 6 },
   sub: { fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  guideBox: {
+    borderWidth: 1,
+    borderRadius: 12,
+    marginBottom: 14,
+    overflow: 'hidden',
+  },
+  guideHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  guideTitle: { fontSize: 14, fontWeight: '700', flex: 1, paddingRight: 8 },
+  guideBody: { paddingHorizontal: 14, paddingBottom: 14 },
+  guideStepRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  guideStepNum: { fontSize: 13, fontWeight: '800', width: 18 },
+  guideStepText: { flex: 1, fontSize: 13, lineHeight: 19 },
   sectionTitle: {
     fontSize: 12,
     fontWeight: '700',
