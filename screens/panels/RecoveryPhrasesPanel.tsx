@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import type { RecoveryPhraseEntry } from '../../types/recovery';
 import {
   addRecoveryPhrase,
@@ -21,6 +22,7 @@ import {
 
 const RecoveryPhrasesPanel = () => {
   const { colors } = useTheme();
+  const { t } = useLanguage();
 
   const [entries, setEntries] = useState<RecoveryPhraseEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,12 +30,7 @@ const RecoveryPhrasesPanel = () => {
   const [name, setName] = useState('');
   const [phrase, setPhrase] = useState('');
   const [notes, setNotes] = useState('');
-  /** Explicit reveal via Show button */
   const [showFormPhrase, setShowFormPhrase] = useState(false);
-  /**
-   * Allows plain text while composing in an empty field (type/paste).
-   * Cleared on blur once the field has content so focus alone never reveals.
-   */
   const [composing, setComposing] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -47,8 +44,6 @@ const RecoveryPhrasesPanel = () => {
   const isEditing = editingId !== null;
   const wordCount = useMemo(() => countWords(phrase), [phrase]);
   const isFormCopied = copiedId === 'form';
-
-  // Never reveal on focus alone — only Show, or while still composing an empty entry
   const showPlainPhrase = showFormPhrase || composing;
 
   const filtered = useMemo(() => {
@@ -109,7 +104,6 @@ const RecoveryPhrasesPanel = () => {
   };
 
   const handlePhraseBlur = () => {
-    // After leaving the field, lock it to masked unless Show is on
     if (phrase.trim().length > 0 && !showFormPhrase) {
       setComposing(false);
     }
@@ -126,7 +120,7 @@ const RecoveryPhrasesPanel = () => {
 
   const handleSave = async () => {
     if (!name.trim() || !phrase.trim()) {
-      Alert.alert('Error', 'Please enter a name and the recovery phrase');
+      Alert.alert(t('error'), t('enterNameAndPhrase'));
       return;
     }
 
@@ -145,7 +139,7 @@ const RecoveryPhrasesPanel = () => {
       await refresh();
       clearForm();
     } catch {
-      Alert.alert('Error', isEditing ? 'Failed to update phrase' : 'Failed to save phrase');
+      Alert.alert(t('error'), isEditing ? t('failedUpdatePhrase') : t('failedSavePhrase'));
     }
   };
 
@@ -161,7 +155,7 @@ const RecoveryPhrasesPanel = () => {
         return next;
       });
     } catch {
-      Alert.alert('Error', 'Could not delete phrase');
+      Alert.alert(t('error'), t('couldNotDeletePhrase'));
     }
   };
 
@@ -170,7 +164,7 @@ const RecoveryPhrasesPanel = () => {
       await updateRecoveryPhrase(entry.id, { favorite: !entry.favorite });
       await refresh();
     } catch {
-      Alert.alert('Error', 'Could not update favorite');
+      Alert.alert(t('error'), t('couldNotUpdateFavorite'));
     }
   };
 
@@ -208,12 +202,12 @@ const RecoveryPhrasesPanel = () => {
   const handleBulkDelete = () => {
     if (selectedCount === 0) return;
     Alert.alert(
-      'Delete selected',
-      `Delete ${selectedCount} phrase${selectedCount === 1 ? '' : 's'}? This cannot be undone.`,
+      t('deleteSelected'),
+      t('deleteSelectedMsg', { count: selectedCount }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('delete'),
           style: 'destructive',
           onPress: async () => {
             const ids = Object.keys(selectedIds).filter((id) => selectedIds[id]);
@@ -252,7 +246,7 @@ const RecoveryPhrasesPanel = () => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={{ color: colors.textSecondary }}>Loading recovery phrases…</Text>
+        <Text style={{ color: colors.textSecondary }}>{t('loadingRecovery')}</Text>
       </View>
     );
   }
@@ -272,15 +266,15 @@ const RecoveryPhrasesPanel = () => {
       <View style={[styles.form, { backgroundColor: colors.card }]}>
         {isEditing && (
           <View style={styles.editingBanner}>
-            <Text style={[styles.editingText, { color: colors.tint }]}>Editing phrase</Text>
+            <Text style={[styles.editingText, { color: colors.tint }]}>{t('editingPhrase')}</Text>
             <TouchableOpacity onPress={clearForm}>
-              <Text style={{ color: colors.textSecondary, fontWeight: '500' }}>Cancel</Text>
+              <Text style={{ color: colors.textSecondary, fontWeight: '500' }}>{t('cancel')}</Text>
             </TouchableOpacity>
           </View>
         )}
 
         <TextInput
-          placeholder="Name (e.g. MetaMask, Ledger)"
+          placeholder={t('namePlaceholder')}
           placeholderTextColor={colors.textSecondary}
           value={name}
           onChangeText={setName}
@@ -296,7 +290,7 @@ const RecoveryPhrasesPanel = () => {
 
         {showPlainPhrase ? (
           <TextInput
-            placeholder="Recovery phrase (12 or 24 words)"
+            placeholder={t('phrasePlaceholder')}
             placeholderTextColor={colors.textSecondary}
             value={phrase}
             onChangeText={handlePhraseChange}
@@ -316,7 +310,11 @@ const RecoveryPhrasesPanel = () => {
 
         <View style={styles.phraseMetaRow}>
           <Text style={[styles.wordCount, { color: colors.textSecondary }]}>
-            {phrase.trim() ? `${wordCount} word${wordCount === 1 ? '' : 's'}` : ' '}
+            {phrase.trim()
+              ? wordCount === 1
+                ? t('wordCount', { count: wordCount })
+                : t('wordsCount', { count: wordCount })
+              : ' '}
           </Text>
           <View style={styles.phraseActions}>
             <TouchableOpacity
@@ -325,7 +323,7 @@ const RecoveryPhrasesPanel = () => {
               disabled={!phrase}
             >
               <Text style={[styles.smallBtnText, { color: colors.tint }]}>
-                {showFormPhrase ? 'Hide' : 'Show'}
+                {showFormPhrase ? t('hide') : t('show')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -345,14 +343,14 @@ const RecoveryPhrasesPanel = () => {
                   { color: isFormCopied ? colors.success : colors.tint },
                 ]}
               >
-                {isFormCopied ? 'Copied!' : 'Copy'}
+                {isFormCopied ? t('copied') : t('copy')}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <TextInput
-          placeholder="Note (optional)"
+          placeholder={t('noteOptional')}
           placeholderTextColor={colors.textSecondary}
           value={notes}
           onChangeText={setNotes}
@@ -369,7 +367,7 @@ const RecoveryPhrasesPanel = () => {
         />
 
         <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.tint }]} onPress={handleSave}>
-          <Text style={styles.saveBtnText}>{isEditing ? 'Update phrase' : 'Add phrase'}</Text>
+          <Text style={styles.saveBtnText}>{isEditing ? t('updatePhrase') : t('addPhrase')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -391,7 +389,7 @@ const RecoveryPhrasesPanel = () => {
             {allFilteredSelected ? <Text style={styles.checkmark}>✓</Text> : null}
           </View>
           <Text style={[styles.selectBarText, { color: colors.text }]}>
-            {selectedCount > 0 ? `${selectedCount} selected` : 'Select all'}
+            {selectedCount > 0 ? t('selectedCount', { count: selectedCount }) : t('selectAll')}
           </Text>
         </TouchableOpacity>
 
@@ -399,10 +397,10 @@ const RecoveryPhrasesPanel = () => {
           {selectedCount > 0 && (
             <>
               <TouchableOpacity onPress={clearSelection}>
-                <Text style={[styles.selectBarAction, { color: colors.textSecondary }]}>Clear</Text>
+                <Text style={[styles.selectBarAction, { color: colors.textSecondary }]}>{t('clear')}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleBulkDelete}>
-                <Text style={[styles.selectBarAction, { color: colors.danger }]}>Delete</Text>
+                <Text style={[styles.selectBarAction, { color: colors.danger }]}>{t('delete')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -425,7 +423,7 @@ const RecoveryPhrasesPanel = () => {
         <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search name, notes, phrase…"
+            placeholder={t('searchRecovery')}
             placeholderTextColor={colors.textSecondary}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -434,7 +432,7 @@ const RecoveryPhrasesPanel = () => {
             autoCorrect={false}
           />
           <TouchableOpacity onPress={toggleSearch}>
-            <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
+            <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>{t('close')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -493,14 +491,14 @@ const RecoveryPhrasesPanel = () => {
           </View>
         </View>
 
-        <Text style={[styles.label, { color: colors.textSecondary }]}>Phrase</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{t('phraseLabel')}</Text>
         <Text style={[styles.phraseValue, { color: colors.text }]}>
           {isVisible ? item.phrase : maskPhrase(item.phrase)}
         </Text>
 
         {item.notes ? (
           <>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Note</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{t('note')}</Text>
             <Text style={[styles.value, { color: colors.text }]}>{item.notes}</Text>
           </>
         ) : null}
@@ -513,7 +511,7 @@ const RecoveryPhrasesPanel = () => {
                 onPress={() => toggleVisible(item.id)}
               >
                 <Text style={[styles.actionText, { color: colors.text }]}>
-                  {isVisible ? 'Hide' : 'Show'}
+                  {isVisible ? t('hide') : t('show')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -524,20 +522,20 @@ const RecoveryPhrasesPanel = () => {
                 onPress={() => copyText(item.phrase, item.id)}
               >
                 <Text style={[styles.actionText, { color: isCopied ? colors.success : colors.text }]}>
-                  {isCopied ? 'Copied!' : 'Copy'}
+                  {isCopied ? t('copied') : t('copy')}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
                 onPress={() => startEdit(item)}
               >
-                <Text style={[styles.actionText, { color: colors.tint }]}>Edit</Text>
+                <Text style={[styles.actionText, { color: colors.tint }]}>{t('edit')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
                 onPress={() => setConfirmingDeleteId(item.id)}
               >
-                <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>
+                <Text style={[styles.actionText, { color: colors.danger }]}>{t('delete')}</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -546,13 +544,13 @@ const RecoveryPhrasesPanel = () => {
                 style={[styles.actionBtn, { backgroundColor: colors.overlay }]}
                 onPress={() => setConfirmingDeleteId(null)}
               >
-                <Text style={[styles.actionText, { color: colors.text }]}>Cancel</Text>
+                <Text style={[styles.actionText, { color: colors.text }]}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: colors.dangerBackground }]}
                 onPress={() => confirmDelete(item.id)}
               >
-                <Text style={[styles.actionText, { color: colors.danger }]}>Remove</Text>
+                <Text style={[styles.actionText, { color: colors.danger }]}>{t('remove')}</Text>
               </TouchableOpacity>
             </>
           )}
@@ -562,8 +560,8 @@ const RecoveryPhrasesPanel = () => {
   };
 
   const emptyMessage = searchQuery.trim()
-    ? `No results for "${searchQuery.trim()}".`
-    : 'No recovery phrases yet.\nAdd your first seed phrase above.';
+    ? t('noResultsFor', { query: searchQuery.trim() })
+    : t('noRecoveryYet');
 
   return (
     <View style={styles.container}>
