@@ -269,72 +269,6 @@ const RecoveryPhrasesPanel = () => {
 
   const listHeader = (
     <>
-      <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <TouchableOpacity
-          onPress={toggleSelectAllFiltered}
-          style={[styles.selectBarLeft, filtered.length === 0 && { opacity: 0.4 }]}
-          disabled={filtered.length === 0}
-        >
-          <View
-            style={[
-              styles.checkbox,
-              {
-                borderColor: colors.tint,
-                backgroundColor: allFilteredSelected ? colors.tint : 'transparent',
-              },
-            ]}
-          >
-            {allFilteredSelected ? <Text style={styles.checkmark}>✓</Text> : null}
-          </View>
-          <Text style={[styles.selectBarText, { color: colors.text }]}>
-            {selectedCount > 0 ? `${selectedCount} selected` : 'Select all'}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.selectBarRight}>
-          {selectedCount > 0 && (
-            <>
-              <TouchableOpacity onPress={clearSelection}>
-                <Text style={[styles.selectBarAction, { color: colors.textSecondary }]}>Clear</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleBulkDelete}>
-                <Text style={[styles.selectBarAction, { color: colors.danger }]}>Delete</Text>
-              </TouchableOpacity>
-            </>
-          )}
-          <TouchableOpacity
-            style={[
-              styles.searchIconBtn,
-              {
-                backgroundColor: showSearch ? colors.tint + '22' : 'transparent',
-                borderColor: showSearch ? colors.tint : colors.border,
-              },
-            ]}
-            onPress={toggleSearch}
-          >
-            <Text style={{ fontSize: 15 }}>🔍</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {showSearch && (
-        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search name, notes, phrase…"
-            placeholderTextColor={colors.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoFocus
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity onPress={toggleSearch}>
-            <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
       <View style={[styles.form, { backgroundColor: colors.card }]}>
         {isEditing && (
           <View style={styles.editingBanner}>
@@ -438,6 +372,72 @@ const RecoveryPhrasesPanel = () => {
           <Text style={styles.saveBtnText}>{isEditing ? 'Update phrase' : 'Add phrase'}</Text>
         </TouchableOpacity>
       </View>
+
+      <View style={[styles.selectBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TouchableOpacity
+          onPress={toggleSelectAllFiltered}
+          style={[styles.selectBarLeft, filtered.length === 0 && { opacity: 0.4 }]}
+          disabled={filtered.length === 0}
+        >
+          <View
+            style={[
+              styles.checkbox,
+              {
+                borderColor: colors.tint,
+                backgroundColor: allFilteredSelected ? colors.tint : 'transparent',
+              },
+            ]}
+          >
+            {allFilteredSelected ? <Text style={styles.checkmark}>✓</Text> : null}
+          </View>
+          <Text style={[styles.selectBarText, { color: colors.text }]}>
+            {selectedCount > 0 ? `${selectedCount} selected` : 'Select all'}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.selectBarRight}>
+          {selectedCount > 0 && (
+            <>
+              <TouchableOpacity onPress={clearSelection}>
+                <Text style={[styles.selectBarAction, { color: colors.textSecondary }]}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleBulkDelete}>
+                <Text style={[styles.selectBarAction, { color: colors.danger }]}>Delete</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          <TouchableOpacity
+            style={[
+              styles.searchIconBtn,
+              {
+                backgroundColor: showSearch ? colors.tint + '22' : 'transparent',
+                borderColor: showSearch ? colors.tint : colors.border,
+              },
+            ]}
+            onPress={toggleSearch}
+          >
+            <Text style={{ fontSize: 15 }}>🔍</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {showSearch && (
+        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search name, notes, phrase…"
+            placeholderTextColor={colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity onPress={toggleSearch}>
+            <Text style={{ color: colors.textSecondary, fontWeight: '600' }}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </>
   );
 
