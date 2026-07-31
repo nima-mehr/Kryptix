@@ -12,11 +12,34 @@ import {
   ptOverrides,
 } from './locales/es_pt_it_el_ko';
 import { APP_LANGUAGES, isAppLanguage, type AppLanguage } from './languages';
+import { applyFaqOverrides } from './faqOverrides';
 
-const en = baseTranslations.en;
+const enBase = baseTranslations.en;
+
+/** Ensure faq7 keys exist on the English base so TranslationKey typing stays happy at runtime */
+const en = applyFaqOverrides('en', {
+  ...enBase,
+  faq7q: enBase.faq7q ?? 'How does the iOS share sheet work for backups?',
+  faq7a:
+    enBase.faq7a ??
+    'After Encrypt & share, iOS shows the system share sheet with your .kryptix file. To keep a copy on the device: choose Save to Files → On My iPhone or iCloud Drive → Save. You can also AirDrop, Mail, or Messages. To restore later: Settings → Backup → Import .kryptix → Choose file from the Files app. The export passphrase is required to decrypt — store it safely offline.',
+}) as Record<TranslationKey, string>;
 
 function merge(overrides: Record<string, string>): Record<TranslationKey, string> {
-  return { ...en, ...(overrides as Partial<Record<TranslationKey, string>>) };
+  return applyFaqOverrides('en', {
+    ...en,
+    ...(overrides as Partial<Record<TranslationKey, string>>),
+  }) as Record<TranslationKey, string>;
+}
+
+function mergeLang(
+  lang: AppLanguage,
+  overrides: Record<string, string>
+): Record<TranslationKey, string> {
+  return applyFaqOverrides(lang, {
+    ...en,
+    ...(overrides as Partial<Record<TranslationKey, string>>),
+  }) as Record<TranslationKey, string>;
 }
 
 export type { AppLanguage, TranslationKey };
@@ -24,19 +47,19 @@ export { isAppLanguage, APP_LANGUAGES };
 
 export const translations: Record<AppLanguage, Record<TranslationKey, string>> = {
   en,
-  fa: baseTranslations.fa,
-  ru: baseTranslations.ru,
-  de: baseTranslations.de,
-  fr: baseTranslations.fr,
-  zh: baseTranslations.zh,
-  ar: merge(arOverrides),
-  tr: merge(trOverrides),
-  ja: merge(jaOverrides),
-  es: merge(esOverrides),
-  pt: merge(ptOverrides),
-  it: merge(itOverrides),
-  el: merge(elOverrides),
-  ko: merge(koOverrides),
+  fa: mergeLang('fa', baseTranslations.fa),
+  ru: mergeLang('ru', baseTranslations.ru),
+  de: mergeLang('de', baseTranslations.de),
+  fr: mergeLang('fr', baseTranslations.fr),
+  zh: mergeLang('zh', baseTranslations.zh),
+  ar: mergeLang('ar', arOverrides),
+  tr: mergeLang('tr', trOverrides),
+  ja: mergeLang('ja', jaOverrides),
+  es: mergeLang('es', esOverrides),
+  pt: mergeLang('pt', ptOverrides),
+  it: mergeLang('it', itOverrides),
+  el: mergeLang('el', elOverrides),
+  ko: mergeLang('ko', koOverrides),
 };
 
 /** Always-visible endonym — not translated with the UI language */
