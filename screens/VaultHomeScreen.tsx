@@ -4,6 +4,7 @@ import { Clipboard, Linking, StyleSheet, Text, TouchableOpacity, View } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import VaultSectionTabs, { VaultSection } from '../components/VaultSectionTabs';
 import KryptixSphereLogo from '../components/KryptixSphereLogo';
+import KryptixBackupModal from '../components/KryptixBackupModal';
 import { ThemeMode, useTheme } from '../context/ThemeContext';
 import { languageMeta, useLanguage } from '../context/LanguageContext';
 import type { TranslationKey } from '../i18n/translations';
@@ -37,6 +38,7 @@ const VaultHomeScreen = () => {
   const [helpView, setHelpView] = useState<HelpView>('main');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [walletCopied, setWalletCopied] = useState(false);
+  const [showBackup, setShowBackup] = useState(false);
 
   const themeOptions: { key: ThemeMode; labelKey: TranslationKey; icon: string }[] = useMemo(
     () => [
@@ -50,7 +52,6 @@ const VaultHomeScreen = () => {
   const themeLabel =
     mode === 'light' ? t('light') : mode === 'dark' ? t('dark') : t('system');
   const languageMetaEntry = languageMeta.find((m) => m.code === language);
-  // Always show the language’s own name (endonym), independent of UI language
   const languageLabel = languageMetaEntry?.nativeName ?? 'English';
   const usePlainTitleFont =
     language === 'fa' ||
@@ -309,6 +310,17 @@ const VaultHomeScreen = () => {
                   <Text style={[styles.rowValue, { color: colors.textSecondary }]}>{languageLabel}</Text>
                   <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => {
+                    setShowSettings(false);
+                    setShowBackup(true);
+                  }}
+                >
+                  <Text style={{ fontSize: 16 }}>💾</Text>
+                  <Text style={[styles.rowLabel, { color: colors.text }]}>Backup (.kryptix)</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 16 }}>›</Text>
+                </TouchableOpacity>
               </>
             )}
 
@@ -379,6 +391,8 @@ const VaultHomeScreen = () => {
           <HardcodedPasswordPanel />
         )}
       </View>
+
+      <KryptixBackupModal visible={showBackup} onClose={() => setShowBackup(false)} />
     </View>
   );
 };
