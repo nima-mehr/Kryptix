@@ -17,8 +17,9 @@ type HelpView = 'main' | 'faq' | 'about' | 'support';
 
 const SUPPORT_WALLET = '0xe9e9603Ca0677669b2bFd02AC4eE286e2764AA33';
 
-/** Networks this EVM address accepts (same 0x format across chains) */
-const SUPPORT_NETWORKS = ['Ethereum', 'BNB Smart Chain', 'Base'] as const;
+/** Coins and networks shown on the donate card */
+const SUPPORT_COINS = ['ETH', 'USDT'] as const;
+const SUPPORT_NETWORKS = ['Ethereum', 'BNB Chain', 'Base'] as const;
 
 /** FAQ keys — faq7 lives in i18n/faqOverrides.ts and is merged at runtime */
 const FAQ_KEYS: { q: string; a: string }[] = [
@@ -266,18 +267,23 @@ const VaultHomeScreen = () => {
                     {t('walletHint')}
                   </Text>
                   <View style={styles.networkChips}>
+                    {SUPPORT_COINS.map((coin) => (
+                      <View
+                        key={coin}
+                        style={[styles.networkChip, { backgroundColor: colors.tint + '22', borderColor: colors.tint + '55' }]}
+                      >
+                        <Text style={[styles.networkChipText, { color: colors.tint }]}>{coin}</Text>
+                      </View>
+                    ))}
                     {SUPPORT_NETWORKS.map((net) => (
                       <View
                         key={net}
-                        style={[styles.networkChip, { backgroundColor: colors.tint + '18', borderColor: colors.border }]}
+                        style={[styles.networkChip, { backgroundColor: colors.overlay || colors.card, borderColor: colors.border }]}
                       >
-                        <Text style={[styles.networkChipText, { color: colors.tint }]}>{net}</Text>
+                        <Text style={[styles.networkChipText, { color: colors.textSecondary }]}>{net}</Text>
                       </View>
                     ))}
                   </View>
-                  <Text style={[styles.walletNetworksNote, { color: colors.textSecondary }]}>
-                    {t('walletNetworks')}
-                  </Text>
                   <Text
                     style={[styles.walletAddress, { color: colors.text, borderColor: colors.border }]}
                     selectable
@@ -307,9 +313,6 @@ const VaultHomeScreen = () => {
                   </TouchableOpacity>
                   <Text style={[styles.walletWarning, { color: colors.textSecondary }]}>
                     {t('walletWarning')}
-                  </Text>
-                  <Text style={[styles.walletWhat, { color: colors.textSecondary }]}>
-                    {t('walletWhatCanSend')}
                   </Text>
                 </View>
               </>
@@ -515,7 +518,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginBottom: 6,
+    marginBottom: 10,
   },
   networkChip: {
     paddingHorizontal: 10,
@@ -524,7 +527,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   networkChipText: { fontSize: 12, fontWeight: '600' },
-  walletNetworksNote: { fontSize: 12, marginBottom: 10, lineHeight: 17 },
   walletAddress: {
     fontSize: 12,
     fontFamily: 'monospace',
@@ -542,12 +544,6 @@ const styles = StyleSheet.create({
   },
   walletWarning: {
     marginTop: 12,
-    fontSize: 12,
-    lineHeight: 17,
-    fontWeight: '600',
-  },
-  walletWhat: {
-    marginTop: 6,
     fontSize: 12,
     lineHeight: 17,
   },
