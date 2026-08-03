@@ -17,6 +17,9 @@ type HelpView = 'main' | 'faq' | 'about' | 'support';
 
 const SUPPORT_WALLET = '0xe9e9603Ca0677669b2bFd02AC4eE286e2764AA33';
 
+/** Networks this EVM address accepts (same 0x format across chains) */
+const SUPPORT_NETWORKS = ['Ethereum', 'BNB Smart Chain', 'Base'] as const;
+
 /** FAQ keys — faq7 lives in i18n/faqOverrides.ts and is merged at runtime */
 const FAQ_KEYS: { q: string; a: string }[] = [
   { q: 'faq1q', a: 'faq1a' },
@@ -262,6 +265,19 @@ const VaultHomeScreen = () => {
                   <Text style={[styles.walletHint, { color: colors.textSecondary }]}>
                     {t('walletHint')}
                   </Text>
+                  <View style={styles.networkChips}>
+                    {SUPPORT_NETWORKS.map((net) => (
+                      <View
+                        key={net}
+                        style={[styles.networkChip, { backgroundColor: colors.tint + '18', borderColor: colors.border }]}
+                      >
+                        <Text style={[styles.networkChipText, { color: colors.tint }]}>{net}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={[styles.walletNetworksNote, { color: colors.textSecondary }]}>
+                    {t('walletNetworks')}
+                  </Text>
                   <Text
                     style={[styles.walletAddress, { color: colors.text, borderColor: colors.border }]}
                     selectable
@@ -289,6 +305,12 @@ const VaultHomeScreen = () => {
                       {walletCopied ? t('copied') : t('copyAddress')}
                     </Text>
                   </TouchableOpacity>
+                  <Text style={[styles.walletWarning, { color: colors.textSecondary }]}>
+                    {t('walletWarning')}
+                  </Text>
+                  <Text style={[styles.walletWhat, { color: colors.textSecondary }]}>
+                    {t('walletWhatCanSend')}
+                  </Text>
                 </View>
               </>
             )}
@@ -488,7 +510,21 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   walletBlock: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4 },
-  walletHint: { fontSize: 13, marginBottom: 8 },
+  walletHint: { fontSize: 13, marginBottom: 8, lineHeight: 18 },
+  networkChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
+  networkChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  networkChipText: { fontSize: 12, fontWeight: '600' },
+  walletNetworksNote: { fontSize: 12, marginBottom: 10, lineHeight: 17 },
   walletAddress: {
     fontSize: 12,
     fontFamily: 'monospace',
@@ -503,6 +539,17 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 10,
+  },
+  walletWarning: {
+    marginTop: 12,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '600',
+  },
+  walletWhat: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 17,
   },
 });
 
