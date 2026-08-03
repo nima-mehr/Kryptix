@@ -68,7 +68,7 @@ Kryptix follows a local-first, user-controlled design:
 
 We believe the strongest trust signal for a password vault is the ability for independent parties to review the code. That is why the repository is public.
 
-> For vulnerability reports, please open a private security advisory or contact the maintainer. A formal `SECURITY.md` will be expanded as the project matures.
+For vulnerability reporting, supported versions, and disclosure policy, see **[SECURITY.md](SECURITY.md)**.
 
 ---
 
@@ -133,15 +133,13 @@ desktop/              # Tauri 2 desktop app (in progress)
 ## Contributing
 
 Contributions, security feedback, and thoughtful issue reports are welcome.  
-Please open an issue or pull request. For security-sensitive reports, prefer a private channel when possible.
+Please open an issue or pull request. For security-sensitive reports, see [SECURITY.md](SECURITY.md).
 
 ---
 
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.
-
-*(If a LICENSE file is not yet present, it will be added shortly. The intent is a permissive open-source license so the community can review and build upon the work.)*
 
 ---
 
