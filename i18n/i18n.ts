@@ -13,32 +13,39 @@ import {
 } from './locales/es_pt_it_el_ko';
 import { APP_LANGUAGES, isAppLanguage, type AppLanguage } from './languages';
 import { applyFaqOverrides } from './faqOverrides';
+import { walletStringOverrides } from './walletStrings';
 
 const enBase = baseTranslations.en;
+const enWallet = walletStringOverrides.en ?? {};
 
-/** Ensure faq7 keys exist on the English base so TranslationKey typing stays happy at runtime */
+/** Ensure faq7 + wallet keys exist on the English base so TranslationKey typing stays happy at runtime */
 const en = applyFaqOverrides('en', {
   ...enBase,
+  ...enWallet,
   faq7q: enBase.faq7q ?? 'How does the iOS share sheet work for backups?',
   faq7a:
     enBase.faq7a ??
     'After Encrypt & share, iOS shows the system share sheet with your .kryptix file. To keep a copy on the device: choose Save to Files → On My iPhone or iCloud Drive → Save. You can also AirDrop, Mail, or Messages. To restore later: Settings → Backup → Import .kryptix → Choose file from the Files app. The export passphrase is required to decrypt — store it safely offline.',
+  walletNetworks:
+    enWallet.walletNetworks ??
+    'Also other EVM networks that use this address format.',
+  walletWarning:
+    enWallet.walletWarning ??
+    'Important: select the same network in your wallet when sending. Wrong network can mean lost funds.',
+  walletWhatCanSend:
+    enWallet.walletWhatCanSend ??
+    'You can send native coins (ETH, BNB, …) and tokens (e.g. USDT, USDC) on those networks.',
 }) as Record<TranslationKey, string>;
-
-function merge(overrides: Record<string, string>): Record<TranslationKey, string> {
-  return applyFaqOverrides('en', {
-    ...en,
-    ...(overrides as Partial<Record<TranslationKey, string>>),
-  }) as Record<TranslationKey, string>;
-}
 
 function mergeLang(
   lang: AppLanguage,
   overrides: Record<string, string>
 ): Record<TranslationKey, string> {
+  const wallet = walletStringOverrides[lang] ?? {};
   return applyFaqOverrides(lang, {
     ...en,
     ...(overrides as Partial<Record<TranslationKey, string>>),
+    ...wallet,
   }) as Record<TranslationKey, string>;
 }
 
