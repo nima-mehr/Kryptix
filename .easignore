@@ -1,0 +1,35 @@
+# Start from .gitignore rules
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.pem
+.env*.local
+*.tsbuildinfo
+app-example
+
+# Extra things EAS doesn't need
+android/
+ios/
+desktop/
+.git/
+docs/
+*.md
+!README.md
+coverage/
+.vscode/
+.idea/
+*.log
