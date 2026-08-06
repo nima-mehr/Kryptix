@@ -201,8 +201,9 @@ const LoginScreen = () => {
           style={[
             styles.button,
             { backgroundColor: colors.tint },
+            // First-time: full width. Returning users with bio: share row.
+            showBiometricButton ? { flex: 1 } : { width: '100%' },
             (isLoading || !masterPassword) && { opacity: 0.6 },
-            showBiometricButton && { flex: 1 },
           ]}
           onPress={handleLogin}
           disabled={isLoading || !masterPassword}
