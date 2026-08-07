@@ -28,14 +28,13 @@ export {
 } from './crypto/encryption';
 export type { EncryptResult } from './crypto/encryption';
 
-// .kryptix format (encryptVaultFile / decryptVaultFile) — enable when kryptixFormat.ts is present
-// export {
-//   buildPayload,
-//   encryptVaultFile,
-//   decryptVaultFile,
-//   parseVaultFileJson,
-//   isKryptixFileName,
-// } from './crypto/kryptixFormat';
+export {
+  buildPayload,
+  encryptVaultFile,
+  decryptVaultFile,
+  parseVaultFileJson,
+  isKryptixFileName,
+} from './crypto/kryptixFormat';
 
 // Utils
 export { generateId } from './utils/id';
