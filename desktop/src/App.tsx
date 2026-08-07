@@ -1,9 +1,17 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  generateId,
+  encryptPassword,
+  decryptPassword,
+  algorithmLabel,
+  type PasswordEntry,
+} from "@kryptix/core";
 import "./App.css";
 
 function App() {
   const [status, setStatus] = useState("Ready");
+  const [coreStatus, setCoreStatus] = useState("Not tested");
 
   async function testBackend() {
     try {
@@ -11,6 +19,43 @@ function App() {
       setStatus(msg);
     } catch (e) {
       setStatus(`Error: ${String(e)}`);
+    }
+  }
+
+  async function testSharedCore() {
+    try {
+      const id = generateId();
+      const sample: PasswordEntry = {
+        id,
+        site: "example.com",
+        username: "demo",
+        password: "secret-password",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      const { ciphertext, iv } = await encryptPassword(
+        sample.password,
+        "aes256",
+        "test-master-key"
+      );
+      const plain = await decryptPassword(
+        ciphertext,
+        "aes256",
+        "test-master-key",
+        iv
+      );
+
+      if (plain !== sample.password) {
+        setCoreStatus("FAIL: decrypt mismatch");
+        return;
+      }
+
+      setCoreStatus(
+        `OK — id=${id.slice(0, 8)}… | ${algorithmLabel("aes256")} round-trip works`
+      );
+    } catch (e) {
+      setCoreStatus(`Error: ${String(e)}`);
     }
   }
 
@@ -26,29 +71,33 @@ function App() {
 
       <main className="main">
         <section className="card">
-          <h2>Desktop scaffold is ready</h2>
+          <h2>Shared core connected</h2>
           <p>
-            This is the Tauri + React foundation for the Kryptix desktop app.
-            Next steps: shared encryption core, secure storage, and vault UI.
+            Desktop now imports types and crypto from{" "}
+            <code>@kryptix/core</code>. Run the tests below to verify the
+            Rust shell and the shared TypeScript core.
           </p>
 
           <div className="actions">
             <button className="btn primary" onClick={testBackend}>
               Test Rust backend
             </button>
+            <button className="btn" onClick={testSharedCore}>
+              Test shared core
+            </button>
           </div>
 
-          <p className="status">{status}</p>
+          <p className="status">Rust: {status}</p>
+          <p className="status">Core: {coreStatus}</p>
         </section>
 
         <section className="card muted">
-          <h3>Planned structure</h3>
+          <h3>Next up</h3>
           <ul>
-            <li>Shared pure-TS crypto &amp; .kryptix format</li>
-            <li>OS keychain / secure storage via Tauri</li>
-            <li>Desktop-optimized Passwords / Recovery / Hardcoded panels</li>
-            <li>Import / Export (.kryptix, JSON, CSV)</li>
-            <li>Auto-lock, tray (optional), biometrics where available</li>
+            <li>Desktop secure storage (OS keychain)</li>
+            <li>Login + unlock flow</li>
+            <li>Passwords / Recovery / Hardcoded panels</li>
+            <li>.kryptix import / export</li>
           </ul>
         </section>
       </main>
