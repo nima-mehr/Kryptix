@@ -35,6 +35,14 @@ const ALGO_DESC_KEY: Record<EncryptionAlgorithm, string> = {
   base64: 'base64Desc',
 };
 
+/** Fully hide secrets — never leak a prefix of the ciphertext or key. */
+const mask = (text: string, visible: boolean) => {
+  if (visible) return text;
+  if (!text) return '';
+  const len = Math.min(Math.max(text.length, 12), 36);
+  return '•'.repeat(len);
+};
+
 const HardcodedPasswordPanel = () => {
   const { colors } = useTheme();
   const { t } = useLanguage();
@@ -49,13 +57,16 @@ const HardcodedPasswordPanel = () => {
   const [allowCopy, setAllowCopy] = useState(true);
   const [algorithm, setAlgorithm] = useState<EncryptionAlgorithm>('aes256');
   const [showFormPassword, setShowFormPassword] = useState(false);
+  /** Encryption key field always starts hidden */
   const [showFormKey, setShowFormKey] = useState(false);
   const [previewCipher, setPreviewCipher] = useState('');
+  /** Encrypted preview always starts hidden */
   const [showPreviewCipher, setShowPreviewCipher] = useState(false);
   const [encrypting, setEncrypting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [decryptedIds, setDecryptedIds] = useState<Record<string, boolean>>({});
+  /** Ciphertext in list always starts hidden per entry */
   const [visibleCipher, setVisibleCipher] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
@@ -231,13 +242,6 @@ const HardcodedPasswordPanel = () => {
     setTimeout(() => setCopiedId(null), 1500);
   };
 
-  const mask = (text: string, visible: boolean) => {
-    if (visible) return text;
-    if (!text) return '';
-    if (text.length <= 8) return '••••••••';
-    return text.slice(0, 4) + '•'.repeat(Math.min(text.length - 4, 24)) + (text.length > 28 ? '…' : '');
-  };
-
   if (loading) {
     return (
       <View style={styles.container}>
@@ -310,7 +314,11 @@ const HardcodedPasswordPanel = () => {
                     backgroundColor: active ? colors.tint + '14' : colors.inputBackground,
                   },
                 ]}
-                onPress={() => setAlgorithm(opt.value)}
+                onPress={() => {
+                  setAlgorithm(opt.value);
+                  // Keep key hidden when switching algorithms
+                  setShowFormKey(false);
+                }}
               >
                 <Text style={[styles.algoLabel, { color: active ? colors.tint : colors.text }]}>
                   {t(ALGO_LABEL_KEY[opt.value])}
@@ -380,6 +388,7 @@ const HardcodedPasswordPanel = () => {
               secureTextEntry={!showFormKey}
               autoCapitalize="none"
               autoCorrect={false}
+              textContentType="password"
               style={[
                 styles.input,
                 styles.passwordInput,
@@ -418,7 +427,7 @@ const HardcodedPasswordPanel = () => {
                 </Text>
               </TouchableOpacity>
             </View>
-            <Text style={[styles.previewCipher, { color: colors.text }]} selectable={allowCopy}>
+            <Text style={[styles.previewCipher, { color: colors.text }]} selectable={allowCopy && showPreviewCipher}>
               {showPreviewCipher
                 ? previewCipher
                 : previewCipher
@@ -607,7 +616,10 @@ const HardcodedPasswordPanel = () => {
         )}
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>{t('encryptedValue')}</Text>
-        <Text style={[styles.cipherValue, { color: colors.text }]} selectable={item.allowCopy}>
+        <Text
+          style={[styles.cipherValue, { color: colors.text }]}
+          selectable={item.allowCopy && cipherOn}
+        >
           {mask(item.ciphertext, cipherOn)}
         </Text>
         <View style={styles.inlineActions}>
