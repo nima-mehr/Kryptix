@@ -17,10 +17,6 @@ type HelpView = 'main' | 'faq' | 'about' | 'support';
 
 const SUPPORT_WALLET = '0xe9e9603Ca0677669b2bFd02AC4eE286e2764AA33';
 
-/** Coins and networks shown on the donate card */
-const SUPPORT_COINS = ['ETH', 'USDT'] as const;
-const SUPPORT_NETWORKS = ['Ethereum', 'BNB Chain', 'Base'] as const;
-
 /** FAQ keys — faq7 lives in i18n/faqOverrides.ts and is merged at runtime */
 const FAQ_KEYS: { q: string; a: string }[] = [
   { q: 'faq1q', a: 'faq1a' },
@@ -264,26 +260,8 @@ const VaultHomeScreen = () => {
                 </Text>
                 <View style={styles.walletBlock}>
                   <Text style={[styles.walletHint, { color: colors.textSecondary }]}>
-                    {t('walletHint')}
+                    ETH or USDT (Tether) on the Ethereum network (ERC-20)
                   </Text>
-                  <View style={styles.networkChips}>
-                    {SUPPORT_COINS.map((coin) => (
-                      <View
-                        key={coin}
-                        style={[styles.networkChip, { backgroundColor: colors.tint + '22', borderColor: colors.tint + '55' }]}
-                      >
-                        <Text style={[styles.networkChipText, { color: colors.tint }]}>{coin}</Text>
-                      </View>
-                    ))}
-                    {SUPPORT_NETWORKS.map((net) => (
-                      <View
-                        key={net}
-                        style={[styles.networkChip, { backgroundColor: colors.overlay || colors.card, borderColor: colors.border }]}
-                      >
-                        <Text style={[styles.networkChipText, { color: colors.textSecondary }]}>{net}</Text>
-                      </View>
-                    ))}
-                  </View>
                   <Text
                     style={[styles.walletAddress, { color: colors.text, borderColor: colors.border }]}
                     selectable
@@ -514,19 +492,6 @@ const styles = StyleSheet.create({
   },
   walletBlock: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4 },
   walletHint: { fontSize: 13, marginBottom: 8, lineHeight: 18 },
-  networkChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 10,
-  },
-  networkChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  networkChipText: { fontSize: 12, fontWeight: '600' },
   walletAddress: {
     fontSize: 12,
     fontFamily: 'monospace',
