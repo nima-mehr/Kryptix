@@ -285,16 +285,16 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
                 </Text>
                 <ShareSheetGuide />
                 <TouchableOpacity
-                  style={[styles.primaryBtn, { backgroundColor: colors.tint }]}
+                  style={[styles.menuBtn, { borderColor: colors.border, backgroundColor: colors.inputBackground || colors.card }]}
                   onPress={() => setMode('export')}
                 >
-                  <Text style={styles.primaryBtnText}>Export .kryptix</Text>
+                  <Text style={[styles.menuBtnText, { color: colors.text }]}>Export .kryptix</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.secondaryBtn, { borderColor: colors.border }]}
+                  style={[styles.menuBtn, { borderColor: colors.border, backgroundColor: colors.inputBackground || colors.card }]}
                   onPress={() => setMode('import')}
                 >
-                  <Text style={[styles.secondaryBtnText, { color: colors.text }]}>Import .kryptix</Text>
+                  <Text style={[styles.menuBtnText, { color: colors.text }]}>Import .kryptix</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -587,14 +587,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  secondaryBtn: {
+  menuBtn: {
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
     borderWidth: 1,
     marginTop: 10,
   },
-  secondaryBtnText: { fontWeight: '700', fontSize: 15 },
+  menuBtnText: { fontWeight: '700', fontSize: 15 },
 });
 
 export default KryptixBackupModal;
