@@ -18,6 +18,7 @@ import SelectAllSearchBar, {
   BulkActionText,
   BulkActionsRow,
 } from '../components/SelectAllSearchBar';
+import KryptixBackupModal from '../components/KryptixBackupModal';
 import { ThemeMode, useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import {
@@ -155,7 +156,9 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
   const [confirmingDeleteCategory, setConfirmingDeleteCategory] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showImportMenu, setShowImportMenu] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
+  const [showKryptixBackup, setShowKryptixBackup] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   const [showBulkCategoryModal, setShowBulkCategoryModal] = useState(false);
@@ -227,9 +230,32 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
     setExportFormat(null);
   }, []);
 
+  const closeImportMenu = useCallback(() => {
+    setShowImportMenu(false);
+  }, []);
+
   const closeSearch = useCallback(() => {
     setShowSearch(false);
     setSearchQuery('');
+  }, []);
+
+  const openKryptixBackup = useCallback(() => {
+    setShowImportMenu(false);
+    setShowExportMenu(false);
+    setExportFormat(null);
+    setShowKryptixBackup(true);
+  }, []);
+
+  const onKryptixBackupClose = useCallback(async () => {
+    setShowKryptixBackup(false);
+    // Refresh passwords list in case import changed vault data
+    try {
+      const [data, cats] = await Promise.all([loadVault(), loadCategories()]);
+      setVault(data);
+      setCategories(cats);
+    } catch {
+      // ignore
+    }
   }, []);
 
   const toggleSearch = () => {
@@ -243,6 +269,10 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
+        if (showKryptixBackup) {
+          setShowKryptixBackup(false);
+          return true;
+        }
         if (showBulkCategoryModal) {
           setShowBulkCategoryModal(false);
           return true;
@@ -262,6 +292,10 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
         }
         if (showThemePicker) {
           setShowThemePicker(false);
+          return true;
+        }
+        if (showImportMenu) {
+          closeImportMenu();
           return true;
         }
         if (showExportMenu) {
@@ -291,11 +325,13 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => subscription.remove();
     }, [
+      showKryptixBackup,
       showBulkCategoryModal,
       showCreateCategoryModal,
       showImportCategoryModal,
       showSearch,
       showThemePicker,
+      showImportMenu,
       showExportMenu,
       exportFormat,
       confirmingDeleteCategory,
@@ -304,6 +340,7 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
       editingId,
       clearForm,
       closeExportMenu,
+      closeImportMenu,
       closeSearch,
     ])
   );
@@ -530,8 +567,18 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
   const toggleExportMenu = () => {
     if (showExportMenu) closeExportMenu();
     else {
+      setShowImportMenu(false);
       setExportFormat(null);
       setShowExportMenu(true);
+    }
+  };
+
+  const toggleImportMenu = () => {
+    if (showImportMenu) closeImportMenu();
+    else {
+      setShowExportMenu(false);
+      setExportFormat(null);
+      setShowImportMenu(true);
     }
   };
 
@@ -560,7 +607,8 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
     }
   };
 
-  const handleImport = async () => {
+  const handleImportJsonCsv = async () => {
+    closeImportMenu();
     try {
       const entries = await pickAndParseImportFile();
       if (!entries) return;
@@ -856,7 +904,7 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
       <View style={styles.ioBar}>
         <TouchableOpacity
           style={[styles.ioBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={handleImport}
+          onPress={toggleImportMenu}
         >
           <Text style={[styles.ioBtnText, { color: colors.text }]}>{t('import')}</Text>
         </TouchableOpacity>
@@ -867,6 +915,20 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
           <Text style={[styles.ioBtnText, { color: colors.text }]}>{t('export')}</Text>
         </TouchableOpacity>
       </View>
+
+      {showImportMenu && (
+        <View style={[styles.exportMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.exportSectionTitle, { color: colors.textSecondary }]}>
+            {t('chooseFormat')}
+          </Text>
+          <TouchableOpacity style={styles.exportOption} onPress={handleImportJsonCsv}>
+            <Text style={[styles.exportOptionText, { color: colors.text }]}>JSON / CSV</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.exportOption} onPress={openKryptixBackup}>
+            <Text style={[styles.exportOptionText, { color: colors.text }]}>.kryptix</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {showExportMenu && (
         <View style={[styles.exportMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -880,6 +942,9 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.exportOption} onPress={() => setExportFormat('csv')}>
                 <Text style={[styles.exportOptionText, { color: colors.text }]}>CSV</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.exportOption} onPress={openKryptixBackup}>
+                <Text style={[styles.exportOptionText, { color: colors.text }]}>.kryptix</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -1242,6 +1307,8 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
           <Text style={[styles.empty, { color: colors.textSecondary }]}>{emptyMessage}</Text>
         }
       />
+
+      <KryptixBackupModal visible={showKryptixBackup} onClose={onKryptixBackupClose} />
 
       <Modal visible={showBulkCategoryModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
