@@ -27,6 +27,8 @@ type Mode = 'menu' | 'export' | 'import';
 type Props = {
   visible: boolean;
   onClose: () => void;
+  /** When opened from passwords Import/Export, jump straight to that flow */
+  initialMode?: Mode;
 };
 
 const IOS_SHARE_STEPS = [
@@ -40,10 +42,10 @@ const IOS_SHARE_STEPS = [
 const ANDROID_SHARE_HINT =
   'On Android the system share sheet appears after export. Choose Files, Drive, or another app to store the .kryptix backup.';
 
-const KryptixBackupModal = ({ visible, onClose }: Props) => {
+const KryptixBackupModal = ({ visible, onClose, initialMode = 'menu' }: Props) => {
   const { colors } = useTheme();
   const { t } = useLanguage();
-  const [mode, setMode] = useState<Mode>('menu');
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [busy, setBusy] = useState(false);
   const [counts, setCounts] = useState({ passwords: 0, recovery: 0, hardcoded: 0 });
   const [showShareGuide, setShowShareGuide] = useState(false);
@@ -61,9 +63,13 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
   const [payload, setPayload] = useState<KryptixVaultPayload | null>(null);
   const [importMode, setImportMode] = useState<KryptixImportMode>('merge');
 
+  // When launched for a single purpose, hide the menu and the opposite flow
+  const lockedToImport = initialMode === 'import';
+  const lockedToExport = initialMode === 'export';
+
   useEffect(() => {
     if (!visible) return;
-    setMode('menu');
+    setMode(initialMode);
     setBusy(false);
     setPassphrase('');
     setPassphrase2('');
@@ -74,7 +80,7 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
     setShowShareGuide(false);
     setSections({ passwords: true, recovery: true, hardcoded: true });
     getSectionCounts().then(setCounts).catch(() => {});
-  }, [visible]);
+  }, [visible, initialMode]);
 
   const toggleSection = (key: keyof KryptixSectionFlags) => {
     setSections((s) => ({ ...s, [key]: !s[key] }));
@@ -83,6 +89,17 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
   const close = () => {
     if (busy) return;
     onClose();
+  };
+
+  const goBack = () => {
+    // When locked to one flow, back closes the modal instead of showing the menu
+    if (lockedToImport || lockedToExport) {
+      close();
+      return;
+    }
+    setMode('menu');
+    setPicked(null);
+    setPayload(null);
   };
 
   const runExport = async () => {
@@ -277,7 +294,7 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
       <View style={styles.overlay}>
         <View style={[styles.card, { backgroundColor: colors.card }]}>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            {mode === 'menu' && (
+            {mode === 'menu' && !lockedToImport && !lockedToExport && (
               <>
                 <Text style={[styles.title, { color: colors.text }]}>Kryptix backup</Text>
                 <Text style={[styles.sub, { color: colors.textSecondary }]}>
@@ -301,7 +318,7 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
 
             {mode === 'export' && (
               <>
-                <TouchableOpacity onPress={() => setMode('menu')} style={{ marginBottom: 8 }}>
+                <TouchableOpacity onPress={goBack} style={{ marginBottom: 8 }}>
                   <Text style={{ color: colors.tint, fontWeight: '600' }}>← Back</Text>
                 </TouchableOpacity>
                 <Text style={[styles.title, { color: colors.text }]}>Export .kryptix</Text>
@@ -369,14 +386,7 @@ const KryptixBackupModal = ({ visible, onClose }: Props) => {
 
             {mode === 'import' && (
               <>
-                <TouchableOpacity
-                  onPress={() => {
-                    setMode('menu');
-                    setPicked(null);
-                    setPayload(null);
-                  }}
-                  style={{ marginBottom: 8 }}
-                >
+                <TouchableOpacity onPress={goBack} style={{ marginBottom: 8 }}>
                   <Text style={{ color: colors.tint, fontWeight: '600' }}>← Back</Text>
                 </TouchableOpacity>
                 <Text style={[styles.title, { color: colors.text }]}>Import .kryptix</Text>
