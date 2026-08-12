@@ -49,6 +49,7 @@ type StrengthLevel = {
 
 type ExportFormat = 'json' | 'csv';
 type ListFilter = string | null;
+type KryptixMode = 'menu' | 'import' | 'export';
 
 type DashboardProps = {
   /** When true, parent (VaultHome) already shows title / theme / logout */
@@ -159,6 +160,7 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
   const [showImportMenu, setShowImportMenu] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat | null>(null);
   const [showKryptixBackup, setShowKryptixBackup] = useState(false);
+  const [kryptixBackupMode, setKryptixBackupMode] = useState<KryptixMode>('menu');
 
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
   const [showBulkCategoryModal, setShowBulkCategoryModal] = useState(false);
@@ -239,16 +241,17 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
     setSearchQuery('');
   }, []);
 
-  const openKryptixBackup = useCallback(() => {
+  const openKryptixBackup = useCallback((mode: KryptixMode = 'menu') => {
     setShowImportMenu(false);
     setShowExportMenu(false);
     setExportFormat(null);
+    setKryptixBackupMode(mode);
     setShowKryptixBackup(true);
   }, []);
 
   const onKryptixBackupClose = useCallback(async () => {
     setShowKryptixBackup(false);
-    // Refresh passwords list in case import changed vault data
+    setKryptixBackupMode('menu');
     try {
       const [data, cats] = await Promise.all([loadVault(), loadCategories()]);
       setVault(data);
@@ -271,6 +274,7 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
       const onBackPress = () => {
         if (showKryptixBackup) {
           setShowKryptixBackup(false);
+          setKryptixBackupMode('menu');
           return true;
         }
         if (showBulkCategoryModal) {
@@ -924,7 +928,7 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
           <TouchableOpacity style={styles.exportOption} onPress={handleImportJsonCsv}>
             <Text style={[styles.exportOptionText, { color: colors.text }]}>JSON / CSV</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.exportOption} onPress={openKryptixBackup}>
+          <TouchableOpacity style={styles.exportOption} onPress={() => openKryptixBackup('import')}>
             <Text style={[styles.exportOptionText, { color: colors.text }]}>.kryptix</Text>
           </TouchableOpacity>
         </View>
@@ -943,7 +947,7 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
               <TouchableOpacity style={styles.exportOption} onPress={() => setExportFormat('csv')}>
                 <Text style={[styles.exportOptionText, { color: colors.text }]}>CSV</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.exportOption} onPress={openKryptixBackup}>
+              <TouchableOpacity style={styles.exportOption} onPress={() => openKryptixBackup('export')}>
                 <Text style={[styles.exportOptionText, { color: colors.text }]}>.kryptix</Text>
               </TouchableOpacity>
             </>
@@ -1308,7 +1312,11 @@ const DashboardScreen = ({ embedded = false }: DashboardProps) => {
         }
       />
 
-      <KryptixBackupModal visible={showKryptixBackup} onClose={onKryptixBackupClose} />
+      <KryptixBackupModal
+        visible={showKryptixBackup}
+        onClose={onKryptixBackupClose}
+        initialMode={kryptixBackupMode}
+      />
 
       <Modal visible={showBulkCategoryModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
