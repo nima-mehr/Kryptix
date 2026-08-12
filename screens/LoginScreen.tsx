@@ -196,13 +196,16 @@ const LoginScreen = () => {
         onSubmitEditing={handleLogin}
       />
 
+      {/*
+        Row always spans input width.
+        Unlock uses flex:1 so it fills leftover space.
+        Bio is fixed size and never shrinks — sits flush on the right with a small gap.
+      */}
       <View style={styles.actionsRow}>
         <TouchableOpacity
           style={[
             styles.button,
-            { backgroundColor: colors.tint },
-            // First-time: full width. Returning users with bio: share row.
-            showBiometricButton ? { flex: 1 } : { width: '100%' },
+            { backgroundColor: colors.tint, flex: 1 },
             (isLoading || !masterPassword) && { opacity: 0.6 },
           ]}
           onPress={handleLogin}
@@ -285,10 +288,12 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'stretch',
     gap: 12,
   },
   button: {
-    paddingVertical: 16,
+    minHeight: 54,
+    paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -305,6 +310,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   info: {
     textAlign: 'center',
