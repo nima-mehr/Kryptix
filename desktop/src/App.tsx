@@ -10,6 +10,7 @@ import VaultTabs, { type VaultSection } from "./components/VaultTabs";
 import PasswordsPanel from "./components/PasswordsPanel";
 import RecoveryPhrasesPanel from "./components/RecoveryPhrasesPanel";
 import HardcodedPanel from "./components/HardcodedPanel";
+import BackupModal from "./components/BackupModal";
 import "./App.css";
 
 type Mode = "loading" | "create" | "unlock" | "unlocked";
@@ -20,6 +21,8 @@ function App() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [section, setSection] = useState<VaultSection>("passwords");
+  const [backupOpen, setBackupOpen] = useState(false);
+  const [panelKey, setPanelKey] = useState(0);
 
   useEffect(() => {
     vaultExists()
@@ -65,6 +68,7 @@ function App() {
     lockVault();
     setMode("unlock");
     setSection("passwords");
+    setBackupOpen(false);
   }
 
   if (mode === "loading") {
@@ -143,19 +147,34 @@ function App() {
 
         {mode === "unlocked" && (
           <div className="vault-shell">
-            <VaultTabs active={section} onChange={setSection} />
+            <div className="vault-top">
+              <VaultTabs active={section} onChange={setSection} />
+              <button
+                className="btn sm"
+                onClick={() => setBackupOpen(true)}
+                title="Import / export .kryptix backup"
+              >
+                Backup
+              </button>
+            </div>
             {section === "passwords" && (
-              <PasswordsPanel onLock={handleLock} />
+              <PasswordsPanel key={`p-${panelKey}`} onLock={handleLock} />
             )}
             {section === "recovery" && (
-              <RecoveryPhrasesPanel onLock={handleLock} />
+              <RecoveryPhrasesPanel key={`r-${panelKey}`} onLock={handleLock} />
             )}
             {section === "hardcoded" && (
-              <HardcodedPanel onLock={handleLock} />
+              <HardcodedPanel key={`h-${panelKey}`} onLock={handleLock} />
             )}
           </div>
         )}
       </main>
+
+      <BackupModal
+        open={backupOpen}
+        onClose={() => setBackupOpen(false)}
+        onImported={() => setPanelKey((k) => k + 1)}
+      />
 
       <footer className="footer">
         <span>Kryptix Desktop v0.1.0</span>
