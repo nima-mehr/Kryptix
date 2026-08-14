@@ -423,3 +423,68 @@ body,
 .muted {
   color: var(--text-muted);
 }
+
+.vault-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.vault-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.vault-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+
+.vault-tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.vault-tab.active {
+  color: var(--text);
+  background: #1a2230;
+  border-color: var(--border);
+}
+
+.vault-tab.danger-tab.active {
+  color: #ff8a8a;
+  border-color: rgba(255, 107, 107, 0.4);
+  background: rgba(255, 107, 107, 0.08);
+}
+
+.hardcoded-title {
+  color: #ff8a8a !important;
+}
+
+.word-count {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.phrase-input {
+  grid-column: 1 / -1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+select.input {
+  cursor: pointer;
+}
