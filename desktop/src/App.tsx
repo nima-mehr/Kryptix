@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   vaultExists,
   createVault,
@@ -68,7 +67,6 @@ function App() {
     handleLock("Locked due to inactivity");
   });
 
-  // Keyboard shortcuts
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.ctrlKey || e.metaKey;
@@ -148,15 +146,6 @@ function App() {
     } catch (e) {
       setError(String(e));
       toast("Wrong password", "error");
-    }
-  }
-
-  async function minimizeToTray() {
-    try {
-      await getCurrentWindow().hide();
-      toast("Running in system tray — click tray icon to restore", "info");
-    } catch (e) {
-      toast(String(e), "error");
     }
   }
 
@@ -265,13 +254,6 @@ function App() {
                 </button>
                 <button
                   className="btn sm"
-                  onClick={minimizeToTray}
-                  title="Minimize to tray"
-                >
-                  Tray
-                </button>
-                <button
-                  className="btn sm"
                   onClick={() => handleLock("Vault locked")}
                   title="Lock (Ctrl+L)"
                 >
@@ -295,8 +277,7 @@ function App() {
                   ))}
                 </div>
                 <p className="shortcuts-hint">
-                  Shortcuts: Ctrl+L lock · Ctrl+B backup · Ctrl+1/2/3 tabs · Esc
-                  close · Close window → tray
+                  Shortcuts: Ctrl+L lock · Ctrl+B backup · Ctrl+1/2/3 tabs · Esc close · Window close → tray
                 </p>
               </div>
             )}
