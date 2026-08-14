@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   vaultExists,
   createVault,
@@ -11,6 +12,13 @@ import PasswordsPanel from "./components/PasswordsPanel";
 import RecoveryPhrasesPanel from "./components/RecoveryPhrasesPanel";
 import HardcodedPanel from "./components/HardcodedPanel";
 import BackupModal from "./components/BackupModal";
+import ToastStack, { type ToastMessage, type ToastKind } from "./components/Toast";
+import {
+  useIdleLock,
+  IDLE_OPTIONS,
+  loadIdleTimeout,
+  saveIdleTimeout,
+} from "./hooks/useIdleLock";
 import "./App.css";
 
 type Mode = "loading" | "create" | "unlock" | "unlocked";
@@ -23,6 +31,20 @@ function App() {
   const [section, setSection] = useState<VaultSection>("passwords");
   const [backupOpen, setBackupOpen] = useState(false);
   const [panelKey, setPanelKey] = useState(0);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [idleMs, setIdleMs] = useState(loadIdleTimeout);
+  const [showSettings, setShowSettings] = useState(false);
+  const toastId = useState(() => ({ n: 0 }))[0];
+
+  const toast = useCallback((text: string, kind: ToastKind = "info") => {
+    toastId.n += 1;
+    const id = toastId.n;
+    setToasts((prev) => [...prev, { id, text, kind }]);
+  }, [toastId]);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
 
   useEffect(() => {
     vaultExists()
@@ -32,6 +54,68 @@ function App() {
         setMode("create");
       });
   }, []);
+
+  function handleLock(reason?: string) {
+    lockVault();
+    setMode("unlock");
+    setSection("passwords");
+    setBackupOpen(false);
+    setShowSettings(false);
+    if (reason) toast(reason, "info");
+  }
+
+  useIdleLock(mode === "unlocked", idleMs, () => {
+    handleLock("Locked due to inactivity");
+  });
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const mod = e.ctrlKey || e.metaKey;
+
+      if (e.key === "Escape") {
+        if (backupOpen) {
+          setBackupOpen(false);
+          e.preventDefault();
+        } else if (showSettings) {
+          setShowSettings(false);
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (!mod) return;
+
+      if (e.key === "l" || e.key === "L") {
+        if (mode === "unlocked") {
+          e.preventDefault();
+          handleLock("Vault locked");
+        }
+        return;
+      }
+
+      if (e.key === "b" || e.key === "B") {
+        if (mode === "unlocked") {
+          e.preventDefault();
+          setBackupOpen(true);
+        }
+        return;
+      }
+
+      if (mode === "unlocked" && ["1", "2", "3"].includes(e.key)) {
+        e.preventDefault();
+        const map: Record<string, VaultSection> = {
+          "1": "passwords",
+          "2": "recovery",
+          "3": "hardcoded",
+        };
+        setSection(map[e.key]);
+      }
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mode, backupOpen, showSettings]);
 
   async function handleCreate() {
     setError("");
@@ -48,6 +132,7 @@ function App() {
       setPassword("");
       setConfirm("");
       setMode("unlocked");
+      toast("Vault created", "success");
     } catch (e) {
       setError(String(e));
     }
@@ -59,16 +144,27 @@ function App() {
       await unlockVault(password);
       setPassword("");
       setMode("unlocked");
+      toast("Vault unlocked", "success");
     } catch (e) {
       setError(String(e));
+      toast("Wrong password", "error");
     }
   }
 
-  function handleLock() {
-    lockVault();
-    setMode("unlock");
-    setSection("passwords");
-    setBackupOpen(false);
+  async function minimizeToTray() {
+    try {
+      await getCurrentWindow().hide();
+      toast("Running in system tray — click tray icon to restore", "info");
+    } catch (e) {
+      toast(String(e), "error");
+    }
+  }
+
+  function changeIdle(ms: number) {
+    setIdleMs(ms);
+    saveIdleTimeout(ms);
+    const label = IDLE_OPTIONS.find((o) => o.ms === ms)?.label ?? `${ms}ms`;
+    toast(`Auto-lock: ${label}`, "success");
   }
 
   if (mode === "loading") {
@@ -93,6 +189,9 @@ function App() {
         <p className="subtitle">
           Secure vault • Desktop
           {isUnlocked() ? " • Unlocked" : " • Locked"}
+          {mode === "unlocked" && idleMs > 0
+            ? ` • Auto-lock ${Math.round(idleMs / 60000)}m`
+            : ""}
         </p>
       </header>
 
@@ -149,22 +248,70 @@ function App() {
           <div className="vault-shell">
             <div className="vault-top">
               <VaultTabs active={section} onChange={setSection} />
-              <button
-                className="btn sm"
-                onClick={() => setBackupOpen(true)}
-                title="Import / export .kryptix backup"
-              >
-                Backup
-              </button>
+              <div className="vault-top-actions">
+                <button
+                  className="btn sm"
+                  onClick={() => setShowSettings((s) => !s)}
+                  title="Settings"
+                >
+                  Settings
+                </button>
+                <button
+                  className="btn sm"
+                  onClick={() => setBackupOpen(true)}
+                  title="Backup (Ctrl+B)"
+                >
+                  Backup
+                </button>
+                <button
+                  className="btn sm"
+                  onClick={minimizeToTray}
+                  title="Minimize to tray"
+                >
+                  Tray
+                </button>
+                <button
+                  className="btn sm"
+                  onClick={() => handleLock("Vault locked")}
+                  title="Lock (Ctrl+L)"
+                >
+                  Lock
+                </button>
+              </div>
             </div>
+
+            {showSettings && (
+              <div className="settings-bar">
+                <span className="settings-label">Auto-lock after</span>
+                <div className="settings-options">
+                  {IDLE_OPTIONS.map((o) => (
+                    <button
+                      key={o.ms}
+                      className={`btn sm ${idleMs === o.ms ? "primary" : ""}`}
+                      onClick={() => changeIdle(o.ms)}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="shortcuts-hint">
+                  Shortcuts: Ctrl+L lock · Ctrl+B backup · Ctrl+1/2/3 tabs · Esc
+                  close · Close window → tray
+                </p>
+              </div>
+            )}
+
             {section === "passwords" && (
-              <PasswordsPanel key={`p-${panelKey}`} onLock={handleLock} />
+              <PasswordsPanel key={`p-${panelKey}`} onLock={() => handleLock()} />
             )}
             {section === "recovery" && (
-              <RecoveryPhrasesPanel key={`r-${panelKey}`} onLock={handleLock} />
+              <RecoveryPhrasesPanel
+                key={`r-${panelKey}`}
+                onLock={() => handleLock()}
+              />
             )}
             {section === "hardcoded" && (
-              <HardcodedPanel key={`h-${panelKey}`} onLock={handleLock} />
+              <HardcodedPanel key={`h-${panelKey}`} onLock={() => handleLock()} />
             )}
           </div>
         )}
@@ -173,8 +320,13 @@ function App() {
       <BackupModal
         open={backupOpen}
         onClose={() => setBackupOpen(false)}
-        onImported={() => setPanelKey((k) => k + 1)}
+        onImported={() => {
+          setPanelKey((k) => k + 1);
+          toast("Import complete", "success");
+        }}
       />
+
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
       <footer className="footer">
         <span>Kryptix Desktop v0.1.0</span>
