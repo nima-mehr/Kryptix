@@ -5,10 +5,8 @@ import {
   unlockVault,
   lockVault,
   isUnlocked,
-  loadPasswords,
-  savePasswords,
 } from "./lib/storage";
-import { generateId, type PasswordEntry } from "@kryptix/core";
+import PasswordsPanel from "./components/PasswordsPanel";
 import "./App.css";
 
 type Mode = "loading" | "create" | "unlock" | "unlocked";
@@ -17,9 +15,7 @@ function App() {
   const [mode, setMode] = useState<Mode>("loading");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [entryCount, setEntryCount] = useState(0);
 
   useEffect(() => {
     vaultExists()
@@ -45,8 +41,6 @@ function App() {
       setPassword("");
       setConfirm("");
       setMode("unlocked");
-      setStatus("Vault created and unlocked");
-      setEntryCount(0);
     } catch (e) {
       setError(String(e));
     }
@@ -57,10 +51,7 @@ function App() {
     try {
       await unlockVault(password);
       setPassword("");
-      const vault = await loadPasswords();
-      setEntryCount(vault.length);
       setMode("unlocked");
-      setStatus(`Unlocked — ${vault.length} password(s)`);
     } catch (e) {
       setError(String(e));
     }
@@ -69,36 +60,12 @@ function App() {
   function handleLock() {
     lockVault();
     setMode("unlock");
-    setStatus("Locked");
-    setEntryCount(0);
-  }
-
-  async function handleAddDemo() {
-    setError("");
-    try {
-      const vault = await loadPasswords();
-      const now = Date.now();
-      const entry: PasswordEntry = {
-        id: generateId(),
-        site: "demo.kryptix.app",
-        username: "demo-user",
-        password: "demo-secret-" + Math.random().toString(36).slice(2, 8),
-        createdAt: now,
-        updatedAt: now,
-      };
-      vault.push(entry);
-      await savePasswords(vault);
-      setEntryCount(vault.length);
-      setStatus(`Saved demo entry — ${vault.length} total`);
-    } catch (e) {
-      setError(String(e));
-    }
   }
 
   if (mode === "loading") {
     return (
       <div className="app">
-        <main className="main" style={{ gridTemplateColumns: "1fr" }}>
+        <main className="main single">
           <section className="card">
             <p>Loading…</p>
           </section>
@@ -120,9 +87,9 @@ function App() {
         </p>
       </header>
 
-      <main className="main">
+      <main className={`main ${mode === "unlocked" ? "single" : ""}`}>
         {(mode === "create" || mode === "unlock") && (
-          <section className="card">
+          <section className="card login-card">
             <h2>{mode === "create" ? "Create vault" : "Unlock vault"}</h2>
             <p>
               {mode === "create"
@@ -166,44 +133,10 @@ function App() {
             </div>
 
             {error && <p className="error">{error}</p>}
-            {status && <p className="status">{status}</p>}
           </section>
         )}
 
-        {mode === "unlocked" && (
-          <>
-            <section className="card">
-              <h2>Vault unlocked</h2>
-              <p>
-                Encrypted storage is working. Passwords are AES-256 encrypted
-                with your master password before being written to disk.
-              </p>
-              <p className="status">Entries in vault: {entryCount}</p>
-
-              <div className="actions">
-                <button className="btn primary" onClick={handleAddDemo}>
-                  Add demo password
-                </button>
-                <button className="btn" onClick={handleLock}>
-                  Lock vault
-                </button>
-              </div>
-
-              {error && <p className="error">{error}</p>}
-              {status && <p className="status">{status}</p>}
-            </section>
-
-            <section className="card muted">
-              <h3>Storage details</h3>
-              <ul>
-                <li>Plugin: @tauri-apps/plugin-store</li>
-                <li>File: kryptix-vault.json (app data dir)</li>
-                <li>Cipher: AES-256-CBC via @kryptix/core</li>
-                <li>Master password never written to disk</li>
-              </ul>
-            </section>
-          </>
-        )}
+        {mode === "unlocked" && <PasswordsPanel onLock={handleLock} />}
       </main>
 
       <footer className="footer">
