@@ -6,7 +6,10 @@ import {
   lockVault,
   isUnlocked,
 } from "./lib/storage";
+import VaultTabs, { type VaultSection } from "./components/VaultTabs";
 import PasswordsPanel from "./components/PasswordsPanel";
+import RecoveryPhrasesPanel from "./components/RecoveryPhrasesPanel";
+import HardcodedPanel from "./components/HardcodedPanel";
 import "./App.css";
 
 type Mode = "loading" | "create" | "unlock" | "unlocked";
@@ -16,6 +19,7 @@ function App() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
+  const [section, setSection] = useState<VaultSection>("passwords");
 
   useEffect(() => {
     vaultExists()
@@ -60,6 +64,7 @@ function App() {
   function handleLock() {
     lockVault();
     setMode("unlock");
+    setSection("passwords");
   }
 
   if (mode === "loading") {
@@ -136,7 +141,20 @@ function App() {
           </section>
         )}
 
-        {mode === "unlocked" && <PasswordsPanel onLock={handleLock} />}
+        {mode === "unlocked" && (
+          <div className="vault-shell">
+            <VaultTabs active={section} onChange={setSection} />
+            {section === "passwords" && (
+              <PasswordsPanel onLock={handleLock} />
+            )}
+            {section === "recovery" && (
+              <RecoveryPhrasesPanel onLock={handleLock} />
+            )}
+            {section === "hardcoded" && (
+              <HardcodedPanel onLock={handleLock} />
+            )}
+          </div>
+        )}
       </main>
 
       <footer className="footer">
