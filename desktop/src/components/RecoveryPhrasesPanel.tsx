@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { generateId, countWords, type RecoveryPhraseEntry } from "@kryptix/core";
 import { loadRecovery, saveRecovery } from "../lib/storage";
+import ConfirmDelete from "./ConfirmDelete";
 
 type FormState = {
   name: string;
@@ -30,6 +31,7 @@ export default function RecoveryPhrasesPanel({ onLock }: Props) {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -87,11 +89,9 @@ export default function RecoveryPhrasesPanel({ onLock }: Props) {
       setError("Name and phrase are required");
       return;
     }
-
     try {
       const now = Date.now();
       let next: RecoveryPhraseEntry[];
-
       if (editingId) {
         next = entries.map((e) =>
           e.id === editingId
@@ -119,7 +119,6 @@ export default function RecoveryPhrasesPanel({ onLock }: Props) {
           ...entries,
         ];
       }
-
       await saveRecovery(next);
       setEntries(next);
       closeForm();
@@ -129,8 +128,8 @@ export default function RecoveryPhrasesPanel({ onLock }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this recovery phrase?")) return;
     setError("");
+    setPendingDelete(null);
     try {
       const next = entries.filter((e) => e.id !== id);
       await saveRecovery(next);
@@ -172,18 +171,10 @@ export default function RecoveryPhrasesPanel({ onLock }: Props) {
           <span className="badge">{entries.length}</span>
         </div>
         <div className="panel-actions">
-          <input
-            className="input search"
-            placeholder="Search…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <button className="btn primary" onClick={openAdd}>
-            + Add
-          </button>
-          <button className="btn" onClick={onLock}>
-            Lock
-          </button>
+          <input className="input search" placeholder="Search…" value={search}
+            onChange={(e) => setSearch(e.target.value)} />
+          <button className="btn primary" onClick={openAdd}>+ Add</button>
+          <button className="btn" onClick={onLock}>Lock</button>
         </div>
       </div>
 
@@ -193,39 +184,18 @@ export default function RecoveryPhrasesPanel({ onLock }: Props) {
         <div className="form-card">
           <h3>{editingId ? "Edit recovery phrase" : "New recovery phrase"}</h3>
           <div className="form-grid">
-            <input
-              className="input"
-              placeholder="Name (e.g. MetaMask) *"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
+            <input className="input" placeholder="Name (e.g. MetaMask) *" value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })} />
             <div className="word-count">
-              {form.phrase.trim()
-                ? `${countWords(form.phrase)} words`
-                : "—"}
+              {form.phrase.trim() ? `${countWords(form.phrase)} words` : "—"}
             </div>
-            <textarea
-              className="input notes phrase-input"
-              placeholder="Seed / recovery phrase *"
-              rows={3}
-              value={form.phrase}
-              onChange={(e) => setForm({ ...form, phrase: e.target.value })}
-            />
-            <textarea
-              className="input notes"
-              placeholder="Notes"
-              rows={2}
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            />
+            <textarea className="input notes phrase-input" placeholder="Seed / recovery phrase *" rows={3}
+              value={form.phrase} onChange={(e) => setForm({ ...form, phrase: e.target.value })} />
+            <textarea className="input notes" placeholder="Notes" rows={2} value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             <label className="check-label">
-              <input
-                type="checkbox"
-                checked={form.favorite}
-                onChange={(e) =>
-                  setForm({ ...form, favorite: e.target.checked })
-                }
-              />
+              <input type="checkbox" checked={form.favorite}
+                onChange={(e) => setForm({ ...form, favorite: e.target.checked })} />
               Favorite
             </label>
           </div>
@@ -233,9 +203,7 @@ export default function RecoveryPhrasesPanel({ onLock }: Props) {
             <button className="btn primary" onClick={handleSave}>
               {editingId ? "Save changes" : "Add phrase"}
             </button>
-            <button className="btn" onClick={closeForm}>
-              Cancel
-            </button>
+            <button className="btn" onClick={closeForm}>Cancel</button>
           </div>
         </div>
       )}
@@ -246,9 +214,7 @@ export default function RecoveryPhrasesPanel({ onLock }: Props) {
         <div className="empty">
           <p>{search ? "No matches." : "No recovery phrases yet."}</p>
           {!search && (
-            <button className="btn primary" onClick={openAdd}>
-              Add your first phrase
-            </button>
+            <button className="btn primary" onClick={openAdd}>Add your first phrase</button>
           )}
         </div>
       ) : (
@@ -257,17 +223,11 @@ export default function RecoveryPhrasesPanel({ onLock }: Props) {
             <div key={entry.id} className="entry-row">
               <div className="entry-main">
                 <div className="entry-head">
-                  <button
-                    className="star-btn"
-                    title="Toggle favorite"
-                    onClick={() => toggleFavorite(entry)}
-                  >
+                  <button className="star-btn" title="Toggle favorite" onClick={() => toggleFavorite(entry)}>
                     {entry.favorite ? "★" : "☆"}
                   </button>
                   <strong className="entry-site">{entry.name}</strong>
-                  <span className="entry-url">
-                    {countWords(entry.phrase)} words
-                  </span>
+                  <span className="entry-url">{countWords(entry.phrase)} words</span>
                 </div>
                 <div className="entry-meta">
                   <span className="mono pwd">
@@ -276,34 +236,26 @@ export default function RecoveryPhrasesPanel({ onLock }: Props) {
                       : "•".repeat(Math.min(24, entry.phrase.length))}
                   </span>
                 </div>
-                {entry.notes && (
-                  <p className="entry-notes">{entry.notes}</p>
-                )}
+                {entry.notes && <p className="entry-notes">{entry.notes}</p>}
               </div>
               <div className="entry-actions">
-                <button
-                  className="btn sm"
-                  onClick={() =>
-                    setRevealed((p) => ({ ...p, [entry.id]: !p[entry.id] }))
-                  }
-                >
+                <button className="btn sm" onClick={() => setRevealed((p) => ({ ...p, [entry.id]: !p[entry.id] }))}>
                   {revealed[entry.id] ? "Hide" : "Show"}
                 </button>
-                <button
-                  className="btn sm"
-                  onClick={() => copyPhrase(entry.id, entry.phrase)}
-                >
+                <button className="btn sm" onClick={() => copyPhrase(entry.id, entry.phrase)}>
                   {copiedId === entry.id ? "Copied" : "Copy"}
                 </button>
-                <button className="btn sm" onClick={() => openEdit(entry)}>
-                  Edit
-                </button>
-                <button
-                  className="btn sm danger"
-                  onClick={() => handleDelete(entry.id)}
-                >
-                  Delete
-                </button>
+                <button className="btn sm" onClick={() => openEdit(entry)}>Edit</button>
+                {pendingDelete === entry.id ? (
+                  <ConfirmDelete
+                    onConfirm={() => handleDelete(entry.id)}
+                    onCancel={() => setPendingDelete(null)}
+                  />
+                ) : (
+                  <button className="btn sm danger" onClick={() => setPendingDelete(entry.id)}>
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}
