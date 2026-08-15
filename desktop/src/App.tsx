@@ -10,7 +10,8 @@ import VaultTabs, { type VaultSection } from "./components/VaultTabs";
 import PasswordsPanel from "./components/PasswordsPanel";
 import RecoveryPhrasesPanel from "./components/RecoveryPhrasesPanel";
 import HardcodedPanel from "./components/HardcodedPanel";
-import BackupModal from "./components/BackupModal";
+import ExportModal from "./components/ExportModal";
+import ImportModal from "./components/ImportModal";
 import ToastStack, { type ToastMessage, type ToastKind } from "./components/Toast";
 import {
   useIdleLock,
@@ -28,7 +29,8 @@ function App() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [section, setSection] = useState<VaultSection>("passwords");
-  const [backupOpen, setBackupOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [panelKey, setPanelKey] = useState(0);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [idleMs, setIdleMs] = useState(loadIdleTimeout);
@@ -58,7 +60,8 @@ function App() {
     lockVault();
     setMode("unlock");
     setSection("passwords");
-    setBackupOpen(false);
+    setExportOpen(false);
+    setImportOpen(false);
     setShowSettings(false);
     if (reason) toast(reason, "info");
   }
@@ -72,8 +75,11 @@ function App() {
       const mod = e.ctrlKey || e.metaKey;
 
       if (e.key === "Escape") {
-        if (backupOpen) {
-          setBackupOpen(false);
+        if (exportOpen) {
+          setExportOpen(false);
+          e.preventDefault();
+        } else if (importOpen) {
+          setImportOpen(false);
           e.preventDefault();
         } else if (showSettings) {
           setShowSettings(false);
@@ -95,7 +101,14 @@ function App() {
       if (e.key === "b" || e.key === "B") {
         if (mode === "unlocked") {
           e.preventDefault();
-          setBackupOpen(true);
+          setExportOpen(true);
+        }
+        return;
+      }
+      if (e.key === "i" || e.key === "I") {
+        if (mode === "unlocked") {
+          e.preventDefault();
+          setImportOpen(true);
         }
         return;
       }
@@ -113,7 +126,7 @@ function App() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, backupOpen, showSettings]);
+  }, [mode, exportOpen, importOpen, showSettings]);
 
   async function handleCreate() {
     setError("");
@@ -184,7 +197,7 @@ function App() {
         </p>
       </header>
 
-      <main className={`main ${mode === "unlocked" ? "single" : ""}`}>
+      <main className={`main ${mode === "unlocked" ? "single" : ""`}>
         {(mode === "create" || mode === "unlock") && (
           <section className="card login-card">
             <h2>{mode === "create" ? "Create vault" : "Unlock vault"}</h2>
@@ -247,10 +260,17 @@ function App() {
                 </button>
                 <button
                   className="btn sm"
-                  onClick={() => setBackupOpen(true)}
-                  title="Backup (Ctrl+B)"
+                  onClick={() => setImportOpen(true)}
+                  title="Import (Ctrl+I)"
                 >
-                  Backup
+                  Import
+                </button>
+                <button
+                  className="btn sm"
+                  onClick={() => setExportOpen(true)}
+                  title="Export (Ctrl+B)"
+                >
+                  Export
                 </button>
                 <button
                   className="btn sm"
@@ -277,7 +297,7 @@ function App() {
                   ))}
                 </div>
                 <p className="shortcuts-hint">
-                  Shortcuts: Ctrl+L lock · Ctrl+B backup · Ctrl+1/2/3 tabs · Esc close · Window close → tray
+                  Shortcuts: Ctrl+L lock · Ctrl+B export · Ctrl+I import · Ctrl+1/2/3 tabs · Esc close · Window close → tray
                 </p>
               </div>
             )}
@@ -298,12 +318,17 @@ function App() {
         )}
       </main>
 
-      <BackupModal
-        open={backupOpen}
-        onClose={() => setBackupOpen(false)}
-        onImported={() => {
+      <ExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        onDone={(msg) => toast(msg, "success")}
+      />
+      <ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={(msg) => {
           setPanelKey((k) => k + 1);
-          toast("Import complete", "success");
+          toast(msg || "Import complete", "success");
         }}
       />
 
