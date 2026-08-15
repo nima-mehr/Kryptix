@@ -160,3 +160,22 @@ select.input { cursor: pointer; }
 .format-option input { margin-top: 3px; }
 .format-option strong { display: block; font-size: 13px; color: var(--text); }
 .format-option small { display: block; margin-top: 2px; font-size: 12px; color: var(--text-muted); }
+.confirm-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.confirm-delete-label {
+  font-size: 12px;
+  color: var(--danger);
+  font-weight: 600;
+}
+.file-picked {
+  margin: 8px 0 12px;
+  word-break: break-all;
+}
+.detect-kind {
+  color: var(--text-muted);
+  font-weight: 400;
+}
