@@ -8,6 +8,7 @@ import {
   type EncryptionAlgorithm,
 } from "@kryptix/core";
 import { loadHardcoded, saveHardcoded } from "../lib/storage";
+import ConfirmDelete from "./ConfirmDelete";
 
 type FormState = {
   name: string;
@@ -44,6 +45,7 @@ export default function HardcodedPanel({ onLock }: Props) {
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [decrypted, setDecrypted] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -104,9 +106,7 @@ export default function HardcodedPanel({ onLock }: Props) {
       setError("Name and password are required");
       return;
     }
-    const needsKey = ENCRYPTION_OPTIONS.find(
-      (o) => o.value === form.algorithm
-    )?.needsKey;
+    const needsKey = ENCRYPTION_OPTIONS.find((o) => o.value === form.algorithm)?.needsKey;
     if (needsKey && !form.encryptionKey) {
       setError("Encryption key is required for this algorithm");
       return;
@@ -114,12 +114,7 @@ export default function HardcodedPanel({ onLock }: Props) {
 
     try {
       const now = Date.now();
-      const enc = await encryptPassword(
-        form.password,
-        form.algorithm,
-        form.encryptionKey
-      );
-
+      const enc = await encryptPassword(form.password, form.algorithm, form.encryptionKey);
       let next: HardcodedPasswordEntry[];
       if (editingId) {
         next = entries.map((e) =>
@@ -158,7 +153,6 @@ export default function HardcodedPanel({ onLock }: Props) {
           ...entries,
         ];
       }
-
       await saveHardcoded(next);
       setEntries(next);
       closeForm();
@@ -168,7 +162,7 @@ export default function HardcodedPanel({ onLock }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this entry?")) return;
+    setPendingDelete(null);
     try {
       const next = entries.filter((e) => e.id !== id);
       await saveHardcoded(next);
@@ -218,9 +212,7 @@ export default function HardcodedPanel({ onLock }: Props) {
     }
   }
 
-  const needsKey = ENCRYPTION_OPTIONS.find(
-    (o) => o.value === form.algorithm
-  )?.needsKey;
+  const needsKey = ENCRYPTION_OPTIONS.find((o) => o.value === form.algorithm)?.needsKey;
 
   return (
     <div className="panel">
@@ -230,18 +222,10 @@ export default function HardcodedPanel({ onLock }: Props) {
           <span className="badge">{entries.length}</span>
         </div>
         <div className="panel-actions">
-          <input
-            className="input search"
-            placeholder="Search…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <button className="btn primary" onClick={openAdd}>
-            + Add
-          </button>
-          <button className="btn" onClick={onLock}>
-            Lock
-          </button>
+          <input className="input search" placeholder="Search…" value={search}
+            onChange={(e) => setSearch(e.target.value)} />
+          <button className="btn primary" onClick={openAdd}>+ Add</button>
+          <button className="btn" onClick={onLock}>Lock</button>
         </div>
       </div>
 
@@ -251,69 +235,30 @@ export default function HardcodedPanel({ onLock }: Props) {
         <div className="form-card">
           <h3>{editingId ? "Edit hardcoded password" : "New hardcoded password"}</h3>
           <div className="form-grid">
-            <input
-              className="input"
-              placeholder="Name *"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
-            <select
-              className="input"
-              value={form.algorithm}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  algorithm: e.target.value as EncryptionAlgorithm,
-                })
-              }
-            >
+            <input className="input" placeholder="Name *" value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <select className="input" value={form.algorithm}
+              onChange={(e) => setForm({ ...form, algorithm: e.target.value as EncryptionAlgorithm })}>
               {ENCRYPTION_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            <input
-              className="input"
-              placeholder="Password (plaintext) *"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
+            <input className="input" placeholder="Password (plaintext) *" value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })} />
             {needsKey && (
-              <input
-                className="input"
-                placeholder="Encryption key *"
-                value={form.encryptionKey}
-                onChange={(e) =>
-                  setForm({ ...form, encryptionKey: e.target.value })
-                }
-              />
+              <input className="input" placeholder="Encryption key *" value={form.encryptionKey}
+                onChange={(e) => setForm({ ...form, encryptionKey: e.target.value })} />
             )}
-            <textarea
-              className="input notes"
-              placeholder="Notes"
-              rows={2}
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            />
+            <textarea className="input notes" placeholder="Notes" rows={2} value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             <label className="check-label">
-              <input
-                type="checkbox"
-                checked={form.allowCopy}
-                onChange={(e) =>
-                  setForm({ ...form, allowCopy: e.target.checked })
-                }
-              />
+              <input type="checkbox" checked={form.allowCopy}
+                onChange={(e) => setForm({ ...form, allowCopy: e.target.checked })} />
               Allow copy
             </label>
             <label className="check-label">
-              <input
-                type="checkbox"
-                checked={form.favorite}
-                onChange={(e) =>
-                  setForm({ ...form, favorite: e.target.checked })
-                }
-              />
+              <input type="checkbox" checked={form.favorite}
+                onChange={(e) => setForm({ ...form, favorite: e.target.checked })} />
               Favorite
             </label>
           </div>
@@ -321,9 +266,7 @@ export default function HardcodedPanel({ onLock }: Props) {
             <button className="btn primary" onClick={handleSave}>
               {editingId ? "Save changes" : "Add entry"}
             </button>
-            <button className="btn" onClick={closeForm}>
-              Cancel
-            </button>
+            <button className="btn" onClick={closeForm}>Cancel</button>
           </div>
         </div>
       )}
@@ -334,9 +277,7 @@ export default function HardcodedPanel({ onLock }: Props) {
         <div className="empty">
           <p>{search ? "No matches." : "No hardcoded passwords yet."}</p>
           {!search && (
-            <button className="btn primary" onClick={openAdd}>
-              Add your first entry
-            </button>
+            <button className="btn primary" onClick={openAdd}>Add your first entry</button>
           )}
         </div>
       ) : (
@@ -345,10 +286,7 @@ export default function HardcodedPanel({ onLock }: Props) {
             <div key={entry.id} className="entry-row">
               <div className="entry-main">
                 <div className="entry-head">
-                  <button
-                    className="star-btn"
-                    onClick={() => toggleFavorite(entry)}
-                  >
+                  <button className="star-btn" onClick={() => toggleFavorite(entry)}>
                     {entry.favorite ? "★" : "☆"}
                   </button>
                   <strong className="entry-site">{entry.name}</strong>
@@ -356,48 +294,37 @@ export default function HardcodedPanel({ onLock }: Props) {
                 </div>
                 <div className="entry-meta">
                   <span className="mono pwd">
-                    {revealed[entry.id]
-                      ? decrypted[entry.id] ?? entry.password
-                      : "•".repeat(10)}
+                    {revealed[entry.id] ? decrypted[entry.id] ?? entry.password : "•".repeat(10)}
                   </span>
                 </div>
-                {entry.notes && (
-                  <p className="entry-notes">{entry.notes}</p>
-                )}
+                {entry.notes && <p className="entry-notes">{entry.notes}</p>}
               </div>
               <div className="entry-actions">
-                <button
-                  className="btn sm"
+                <button className="btn sm"
                   onClick={() =>
                     revealed[entry.id]
                       ? setRevealed((p) => ({ ...p, [entry.id]: false }))
                       : handleDecrypt(entry)
-                  }
-                >
+                  }>
                   {revealed[entry.id] ? "Hide" : "Decrypt"}
                 </button>
                 {entry.allowCopy && (
-                  <button
-                    className="btn sm"
-                    onClick={() =>
-                      copyText(
-                        entry.id,
-                        decrypted[entry.id] ?? entry.password
-                      )
-                    }
-                  >
+                  <button className="btn sm"
+                    onClick={() => copyText(entry.id, decrypted[entry.id] ?? entry.password)}>
                     {copiedId === entry.id ? "Copied" : "Copy"}
                   </button>
                 )}
-                <button className="btn sm" onClick={() => openEdit(entry)}>
-                  Edit
-                </button>
-                <button
-                  className="btn sm danger"
-                  onClick={() => handleDelete(entry.id)}
-                >
-                  Delete
-                </button>
+                <button className="btn sm" onClick={() => openEdit(entry)}>Edit</button>
+                {pendingDelete === entry.id ? (
+                  <ConfirmDelete
+                    onConfirm={() => handleDelete(entry.id)}
+                    onCancel={() => setPendingDelete(null)}
+                  />
+                ) : (
+                  <button className="btn sm danger" onClick={() => setPendingDelete(entry.id)}>
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))}
