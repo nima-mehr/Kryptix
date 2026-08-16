@@ -105,6 +105,7 @@ function App() {
         }
         return;
       }
+
       if (e.key === "i" || e.key === "I") {
         if (mode === "unlocked") {
           e.preventDefault();
@@ -165,8 +166,8 @@ function App() {
   function changeIdle(ms: number) {
     setIdleMs(ms);
     saveIdleTimeout(ms);
-    const label = IDLE_OPTIONS.find((o) => o.ms === ms)?.label ?? `${ms}ms`;
-    toast(`Auto-lock: ${label}`, "success");
+    const label = IDLE_OPTIONS.find((o) => o.ms === ms)?.label ?? String(ms) + "ms";
+    toast("Auto-lock: " + label, "success");
   }
 
   if (mode === "loading") {
@@ -174,12 +175,19 @@ function App() {
       <div className="app">
         <main className="main single">
           <section className="card">
-            <p>Loading…</p>
+            <p>Loading...</p>
           </section>
         </main>
       </div>
     );
   }
+
+  const mainClass = mode === "unlocked" ? "main single" : "main";
+  const statusText =
+    (isUnlocked() ? " • Unlocked" : " • Locked") +
+    (mode === "unlocked" && idleMs > 0
+      ? " • Auto-lock " + Math.round(idleMs / 60000) + "m"
+      : "");
 
   return (
     <div className="app">
@@ -190,14 +198,11 @@ function App() {
         </div>
         <p className="subtitle">
           Secure vault • Desktop
-          {isUnlocked() ? " • Unlocked" : " • Locked"}
-          {mode === "unlocked" && idleMs > 0
-            ? ` • Auto-lock ${Math.round(idleMs / 60000)}m`
-            : ""}
+          {statusText}
         </p>
       </header>
 
-      <main className={`main ${mode === "unlocked" ? "single" : ""`}>
+      <main className={mainClass}>
         {(mode === "create" || mode === "unlock") && (
           <section className="card login-card">
             <h2>{mode === "create" ? "Create vault" : "Unlock vault"}</h2>
@@ -216,7 +221,8 @@ function App() {
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    mode === "create" ? handleCreate() : handleUnlock();
+                    if (mode === "create") handleCreate();
+                    else handleUnlock();
                   }
                 }}
               />
@@ -289,7 +295,9 @@ function App() {
                   {IDLE_OPTIONS.map((o) => (
                     <button
                       key={o.ms}
-                      className={`btn sm ${idleMs === o.ms ? "primary" : ""}`}
+                      className={
+                        idleMs === o.ms ? "btn sm primary" : "btn sm"
+                      }
                       onClick={() => changeIdle(o.ms)}
                     >
                       {o.label}
@@ -297,22 +305,29 @@ function App() {
                   ))}
                 </div>
                 <p className="shortcuts-hint">
-                  Shortcuts: Ctrl+L lock · Ctrl+B export · Ctrl+I import · Ctrl+1/2/3 tabs · Esc close · Window close → tray
+                  Shortcuts: Ctrl+L lock · Ctrl+B export · Ctrl+I import ·
+                  Ctrl+1/2/3 tabs · Esc close · Window close goes to tray
                 </p>
               </div>
             )}
 
             {section === "passwords" && (
-              <PasswordsPanel key={`p-${panelKey}`} onLock={() => handleLock()} />
+              <PasswordsPanel
+                key={"p-" + panelKey}
+                onLock={() => handleLock()}
+              />
             )}
             {section === "recovery" && (
               <RecoveryPhrasesPanel
-                key={`r-${panelKey}`}
+                key={"r-" + panelKey}
                 onLock={() => handleLock()}
               />
             )}
             {section === "hardcoded" && (
-              <HardcodedPanel key={`h-${panelKey}`} onLock={() => handleLock()} />
+              <HardcodedPanel
+                key={"h-" + panelKey}
+                onLock={() => handleLock()}
+              />
             )}
           </div>
         )}
