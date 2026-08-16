@@ -21,11 +21,7 @@ const emptyForm = (): FormState => ({
   favorite: false,
 });
 
-type Props = {
-  onLock: () => void;
-};
-
-export default function PasswordsPanel({ onLock }: Props) {
+export default function PasswordsPanel() {
   const [entries, setEntries] = useState<PasswordEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -198,9 +194,6 @@ export default function PasswordsPanel({ onLock }: Props) {
           <button className="btn primary" onClick={openAdd}>
             + Add
           </button>
-          <button className="btn" onClick={onLock}>
-            Lock
-          </button>
         </div>
       </div>
 
@@ -210,19 +203,46 @@ export default function PasswordsPanel({ onLock }: Props) {
         <div className="form-card">
           <h3>{editingId ? "Edit password" : "New password"}</h3>
           <div className="form-grid">
-            <input className="input" placeholder="Site / name *" value={form.site}
-              onChange={(e) => setForm({ ...form, site: e.target.value })} />
-            <input className="input" placeholder="URL" value={form.url}
-              onChange={(e) => setForm({ ...form, url: e.target.value })} />
-            <input className="input" placeholder="Username *" value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })} />
-            <input className="input" placeholder="Password *" type="text" value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })} />
-            <textarea className="input notes" placeholder="Notes" rows={2} value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <input
+              className="input"
+              placeholder="Site / name *"
+              value={form.site}
+              onChange={(e) => setForm({ ...form, site: e.target.value })}
+            />
+            <input
+              className="input"
+              placeholder="URL"
+              value={form.url}
+              onChange={(e) => setForm({ ...form, url: e.target.value })}
+            />
+            <input
+              className="input"
+              placeholder="Username *"
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value })}
+            />
+            <input
+              className="input"
+              placeholder="Password *"
+              type="text"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+            <textarea
+              className="input notes"
+              placeholder="Notes"
+              rows={2}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
             <label className="check-label">
-              <input type="checkbox" checked={form.favorite}
-                onChange={(e) => setForm({ ...form, favorite: e.target.checked })} />
+              <input
+                type="checkbox"
+                checked={form.favorite}
+                onChange={(e) =>
+                  setForm({ ...form, favorite: e.target.checked })
+                }
+              />
               Favorite
             </label>
           </div>
@@ -230,7 +250,9 @@ export default function PasswordsPanel({ onLock }: Props) {
             <button className="btn primary" onClick={handleSave}>
               {editingId ? "Save changes" : "Add password"}
             </button>
-            <button className="btn" onClick={closeForm}>Cancel</button>
+            <button className="btn" onClick={closeForm}>
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -241,7 +263,9 @@ export default function PasswordsPanel({ onLock }: Props) {
         <div className="empty">
           <p>{search ? "No matches." : "No passwords yet."}</p>
           {!search && (
-            <button className="btn primary" onClick={openAdd}>Add your first password</button>
+            <button className="btn primary" onClick={openAdd}>
+              Add your first password
+            </button>
           )}
         </div>
       ) : (
@@ -250,11 +274,17 @@ export default function PasswordsPanel({ onLock }: Props) {
             <div key={entry.id} className="entry-row">
               <div className="entry-main">
                 <div className="entry-head">
-                  <button className="star-btn" title="Toggle favorite" onClick={() => toggleFavorite(entry)}>
+                  <button
+                    className="star-btn"
+                    title="Toggle favorite"
+                    onClick={() => toggleFavorite(entry)}
+                  >
                     {entry.favorite ? "★" : "☆"}
                   </button>
                   <strong className="entry-site">{entry.site}</strong>
-                  {entry.url && <span className="entry-url">{entry.url}</span>}
+                  {entry.url && (
+                    <span className="entry-url">{entry.url}</span>
+                  )}
                 </div>
                 <div className="entry-meta">
                   <span className="mono">{entry.username}</span>
@@ -264,26 +294,42 @@ export default function PasswordsPanel({ onLock }: Props) {
                       : "•".repeat(Math.min(entry.password.length, 12))}
                   </span>
                 </div>
-                {entry.notes && <p className="entry-notes">{entry.notes}</p>}
+                {entry.notes && (
+                  <p className="entry-notes">{entry.notes}</p>
+                )}
               </div>
               <div className="entry-actions">
-                <button className="btn sm" onClick={() => toggleReveal(entry.id)}>
+                <button
+                  className="btn sm"
+                  onClick={() => toggleReveal(entry.id)}
+                >
                   {revealed[entry.id] ? "Hide" : "Show"}
                 </button>
-                <button className="btn sm" onClick={() => copyText(entry.id + "-u", entry.username)}>
+                <button
+                  className="btn sm"
+                  onClick={() => copyText(entry.id + "-u", entry.username)}
+                >
                   {copiedId === entry.id + "-u" ? "Copied" : "User"}
                 </button>
-                <button className="btn sm" onClick={() => copyText(entry.id + "-p", entry.password)}>
+                <button
+                  className="btn sm"
+                  onClick={() => copyText(entry.id + "-p", entry.password)}
+                >
                   {copiedId === entry.id + "-p" ? "Copied" : "Pass"}
                 </button>
-                <button className="btn sm" onClick={() => openEdit(entry)}>Edit</button>
+                <button className="btn sm" onClick={() => openEdit(entry)}>
+                  Edit
+                </button>
                 {pendingDelete === entry.id ? (
                   <ConfirmDelete
                     onConfirm={() => handleDelete(entry.id)}
                     onCancel={() => setPendingDelete(null)}
                   />
                 ) : (
-                  <button className="btn sm danger" onClick={() => setPendingDelete(entry.id)}>
+                  <button
+                    className="btn sm danger"
+                    onClick={() => setPendingDelete(entry.id)}
+                  >
                     Delete
                   </button>
                 )}
