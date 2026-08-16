@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import {
   decryptVaultFile,
@@ -42,7 +42,11 @@ function detectKind(path: string, content: string): Pending["kind"] {
   if (lower.endsWith(".kryptix")) return "kryptix";
   if (lower.endsWith(".csv")) {
     const header = content.split(/\r?\n/)[0]?.toLowerCase() ?? "";
-    if (header.includes("phrase") || header.includes("seed") || header.includes("mnemonic")) {
+    if (
+      header.includes("phrase") ||
+      header.includes("seed") ||
+      header.includes("mnemonic")
+    ) {
       return "recovery-csv";
     }
     return "passwords-csv";
@@ -52,12 +56,15 @@ function detectKind(path: string, content: string): Pending["kind"] {
     if (data && typeof data === "object" && !Array.isArray(data)) {
       if (data.format === "KRYPTIX-PLAIN-JSON") return "plain";
       if (data.meta && data.ciphertext && data.mac) return "kryptix";
-      if (Array.isArray(data.passwords) || Array.isArray(data.recoveryPhrases)) return "plain";
+      if (Array.isArray(data.passwords) || Array.isArray(data.recoveryPhrases))
+        return "plain";
     }
     if (Array.isArray(data) && data.length > 0) {
       const sample = data[0] || {};
-      if ("phrase" in sample || "seed" in sample || "mnemonic" in sample) return "recovery-json";
-      if ("ciphertext" in sample || "algorithm" in sample) return "hardcoded-json";
+      if ("phrase" in sample || "seed" in sample || "mnemonic" in sample)
+        return "recovery-json";
+      if ("ciphertext" in sample || "algorithm" in sample)
+        return "hardcoded-json";
       return "passwords-json";
     }
     if (Array.isArray(data)) return "passwords-json";
@@ -67,33 +74,68 @@ function detectKind(path: string, content: string): Pending["kind"] {
   return "passwords-json";
 }
 
-async function mergePasswords(incoming: PasswordEntry[], replace: boolean): Promise<number> {
-  if (replace) { await savePasswords(incoming); return incoming.length; }
+async function mergePasswords(
+  incoming: PasswordEntry[],
+  replace: boolean
+): Promise<number> {
+  if (replace) {
+    await savePasswords(incoming);
+    return incoming.length;
+  }
   const existing = await loadPasswords();
   const ids = new Set(existing.map((e) => e.id));
   const merged = [...existing];
   let n = 0;
-  for (const e of incoming) { if (!ids.has(e.id)) { merged.push(e); n++; } }
+  for (const e of incoming) {
+    if (!ids.has(e.id)) {
+      merged.push(e);
+      n++;
+    }
+  }
   await savePasswords(merged);
   return n;
 }
-async function mergeRecovery(incoming: RecoveryPhraseEntry[], replace: boolean): Promise<number> {
-  if (replace) { await saveRecovery(incoming); return incoming.length; }
+
+async function mergeRecovery(
+  incoming: RecoveryPhraseEntry[],
+  replace: boolean
+): Promise<number> {
+  if (replace) {
+    await saveRecovery(incoming);
+    return incoming.length;
+  }
   const existing = await loadRecovery();
   const ids = new Set(existing.map((e) => e.id));
   const merged = [...existing];
   let n = 0;
-  for (const e of incoming) { if (!ids.has(e.id)) { merged.push(e); n++; } }
+  for (const e of incoming) {
+    if (!ids.has(e.id)) {
+      merged.push(e);
+      n++;
+    }
+  }
   await saveRecovery(merged);
   return n;
 }
-async function mergeHardcoded(incoming: HardcodedPasswordEntry[], replace: boolean): Promise<number> {
-  if (replace) { await saveHardcoded(incoming); return incoming.length; }
+
+async function mergeHardcoded(
+  incoming: HardcodedPasswordEntry[],
+  replace: boolean
+): Promise<number> {
+  if (replace) {
+    await saveHardcoded(incoming);
+    return incoming.length;
+  }
   const existing = await loadHardcoded();
   const ids = new Set(existing.map((e) => e.id));
   const merged = [...existing];
   let n = 0;
-  for (const e of incoming) { if (!ids.has(e.id)) { merged.push(e); n++; } }
+  for (const e of incoming) {
+    if (!ids.has(e.id)) {
+      merged.push(e);
+      n++;
+    }
+  }
   await saveHardcoded(merged);
   return n;
 }
@@ -109,18 +151,31 @@ export default function ImportModal({ open, onClose, onImported }: Props) {
   if (!open) return null;
 
   function handleClose() {
-    setPending(null); setPassphrase(""); setReplace(false);
-    setError(""); setBusy(false); setPickedName(""); onClose();
+    setPending(null);
+    setPassphrase("");
+    setReplace(false);
+    setError("");
+    setBusy(false);
+    setPickedName("");
+    onClose();
   }
 
   async function pickFile() {
-    setError(""); setPending(null); setPassphrase("");
+    setError("");
+    setPending(null);
+    setPassphrase("");
     try {
-      const selected = await open({
+      const selected = await openFileDialog({
         multiple: false,
-        filters: [{ name: "Kryptix / JSON / CSV", extensions: ["kryptix", "json", "csv"] }],
+        filters: [
+          {
+            name: "Kryptix / JSON / CSV",
+            extensions: ["kryptix", "json", "csv"],
+          },
+        ],
       });
       if (!selected || typeof selected !== "string") return;
+
       const content = await readTextFile(selected);
       const kind = detectKind(selected, content);
       const name = selected.split(/[/\\]/).pop() || selected;
@@ -138,16 +193,24 @@ export default function ImportModal({ open, onClose, onImported }: Props) {
       setError("Enter the export passphrase");
       return;
     }
+
     setBusy(true);
     try {
       let msg = "";
       const { content, kind } = pending;
+
       if (kind === "kryptix") {
         const vaultFile = parseVaultFileJson(content);
         const payload = await decryptVaultFile(vaultFile, passphrase);
-        const p = vaultFile.meta.includePasswords ? await mergePasswords(payload.passwords, replace) : 0;
-        const r = vaultFile.meta.includeRecovery ? await mergeRecovery(payload.recoveryPhrases, replace) : 0;
-        const h = vaultFile.meta.includeHardcoded ? await mergeHardcoded(payload.hardcoded, replace) : 0;
+        const p = vaultFile.meta.includePasswords
+          ? await mergePasswords(payload.passwords, replace)
+          : 0;
+        const r = vaultFile.meta.includeRecovery
+          ? await mergeRecovery(payload.recoveryPhrases, replace)
+          : 0;
+        const h = vaultFile.meta.includeHardcoded
+          ? await mergeHardcoded(payload.hardcoded, replace)
+          : 0;
         msg = `Imported — passwords: ${p}, recovery: ${r}, hardcoded: ${h}`;
       } else if (kind === "plain") {
         const vault = plainVaultFromJson(content);
@@ -167,6 +230,7 @@ export default function ImportModal({ open, onClose, onImported }: Props) {
         const n = await mergeHardcoded(hardcodedFromJson(content), replace);
         msg = `Imported ${n} hardcoded entr${n === 1 ? "y" : "ies"}`;
       }
+
       onImported?.(msg);
       handleClose();
     } catch (e) {
@@ -183,35 +247,54 @@ export default function ImportModal({ open, onClose, onImported }: Props) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Import</h2>
-          <button className="btn sm" onClick={handleClose}>Close</button>
+          <button className="btn sm" onClick={handleClose}>
+            Close
+          </button>
         </div>
         <div className="modal-body">
           <p className="muted">
-            Choose a .kryptix, JSON, or CSV file. Format is detected automatically.
+            Choose a .kryptix, JSON, or CSV file. Format is detected
+            automatically.
           </p>
+
           <div className="actions">
             <button className="btn primary" onClick={pickFile} disabled={busy}>
               {pending ? "Choose another file" : "Choose file"}
             </button>
           </div>
+
           {pickedName && (
             <p className="status file-picked">
               Selected: {pickedName}
-              {pending && <span className="detect-kind"> · {pending.kind}</span>}
+              {pending && (
+                <span className="detect-kind"> · {pending.kind}</span>
+              )}
             </p>
           )}
+
           {pending && (
             <>
               <div className="import-mode">
                 <label className="check-label">
-                  <input type="radio" name="import-mode" checked={!replace} onChange={() => setReplace(false)} />
+                  <input
+                    type="radio"
+                    name="import-mode"
+                    checked={!replace}
+                    onChange={() => setReplace(false)}
+                  />
                   Merge (skip existing IDs)
                 </label>
                 <label className="check-label">
-                  <input type="radio" name="import-mode" checked={replace} onChange={() => setReplace(true)} />
+                  <input
+                    type="radio"
+                    name="import-mode"
+                    checked={replace}
+                    onChange={() => setReplace(true)}
+                  />
                   Replace section(s)
                 </label>
               </div>
+
               {needsPassphrase && (
                 <div className="form">
                   <input
@@ -220,19 +303,29 @@ export default function ImportModal({ open, onClose, onImported }: Props) {
                     placeholder="Export passphrase"
                     value={passphrase}
                     onChange={(e) => setPassphrase(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") runImport(); }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") runImport();
+                    }}
                     autoFocus
                   />
                 </div>
               )}
+
               <div className="actions">
-                <button className="btn primary" disabled={busy} onClick={runImport}>
+                <button
+                  className="btn primary"
+                  disabled={busy}
+                  onClick={runImport}
+                >
                   {busy ? "Importing…" : "Import"}
                 </button>
-                <button className="btn" onClick={handleClose}>Cancel</button>
+                <button className="btn" onClick={handleClose}>
+                  Cancel
+                </button>
               </div>
             </>
           )}
+
           {error && <p className="error">{error}</p>}
         </div>
       </div>
