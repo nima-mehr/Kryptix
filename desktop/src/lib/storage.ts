@@ -99,7 +99,6 @@ export async function unlockVault(masterPassword: string): Promise<void> {
     throw new Error('Vault data is missing or corrupt');
   }
 
-  // Validate password by decrypting
   try {
     await decryptJson<PasswordVault>(blob, masterPassword);
   } catch {
@@ -116,6 +115,11 @@ export function lockVault(): void {
 
 export function isUnlocked(): boolean {
   return sessionMaster !== null;
+}
+
+/** Session master password while unlocked (for enabling biometrics). */
+export function getSessionMaster(): string | null {
+  return sessionMaster;
 }
 
 function requireMaster(): string {
