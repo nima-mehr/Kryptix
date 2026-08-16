@@ -9,6 +9,16 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+/// Force the main window to the compact login size (and recenter).
+fn apply_login_size(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        use tauri::LogicalSize;
+        let _ = window.set_min_size(Some(LogicalSize::new(420.0, 420.0)));
+        let _ = window.set_size(LogicalSize::new(460.0, 500.0));
+        let _ = window.center();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -19,6 +29,10 @@ pub fn run() {
         .plugin(tauri_plugin_biometry::init())
         .invoke_handler(tauri::generate_handler![greet])
         .setup(|app| {
+            // Always start at the compact login size, even if the OS
+            // restored a previous larger geometry from the last session.
+            apply_login_size(app.handle());
+
             let show_i = MenuItem::with_id(app, "show", "Show Kryptix", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
