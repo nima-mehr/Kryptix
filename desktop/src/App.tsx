@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import {
   vaultExists,
   createVault,
@@ -33,6 +35,28 @@ import "./App.css";
 
 type Mode = "loading" | "create" | "unlock" | "unlocked";
 
+/** Compact size for create / unlock — fits the login card + borders. */
+const LOGIN_SIZE = { width: 460, height: 500 };
+/** Working size once the vault is open. */
+const VAULT_SIZE = { width: 920, height: 640 };
+const LOGIN_MIN = { width: 420, height: 420 };
+const VAULT_MIN = { width: 720, height: 520 };
+
+async function applyWindowSize(forVault: boolean) {
+  try {
+    const win = getCurrentWindow();
+    const size = forVault ? VAULT_SIZE : LOGIN_SIZE;
+    const min = forVault ? VAULT_MIN : LOGIN_MIN;
+    // Min first so a shrink is never blocked by the previous vault min.
+    await win.setMinSize(new LogicalSize(min.width, min.height));
+    await win.setSize(new LogicalSize(size.width, size.height));
+    await win.center();
+  } catch (err) {
+    // Not running under Tauri (e.g. plain vite preview), or API missing.
+    console.warn("[kryptix] applyWindowSize failed:", err);
+  }
+}
+
 function App() {
   const [mode, setMode] = useState<Mode>("loading");
   const [password, setPassword] = useState("");
@@ -61,6 +85,7 @@ function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // Probe biometrics on mount and when returning to lock screen
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -86,6 +111,19 @@ function App() {
         setMode("create");
       });
   }, []);
+
+  // Keep the native window sized to the current screen (login vs vault).
+  // Also re-apply on focus so tray-restore doesn't leave a stale size.
+  useEffect(() => {
+    if (mode === "loading") return;
+    void applyWindowSize(mode === "unlocked");
+
+    const onFocus = () => {
+      void applyWindowSize(mode === "unlocked");
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [mode]);
 
   function handleLock(reason?: string) {
     lockVault();
@@ -204,6 +242,7 @@ function App() {
       toast("Unlocked with " + (bioInfo?.label || "biometrics"), "success");
     } catch (e) {
       const msg = String(e);
+      // User cancel is not an error toast
       if (!/cancel/i.test(msg)) {
         setError(msg);
         toast(msg, "error");
@@ -251,9 +290,9 @@ function App() {
 
   if (mode === "loading") {
     return (
-      <div className="app">
-        <main className="main single">
-          <section className="card">
+      <div className="app app-login">
+        <main className="main single login-main">
+          <section className="card login-card">
             <p>Loading...</p>
           </section>
         </main>
@@ -261,7 +300,8 @@ function App() {
     );
   }
 
-  const mainClass = mode === "unlocked" ? "main single" : "main";
+  const isLogin = mode === "create" || mode === "unlock";
+  const mainClass = mode === "unlocked" ? "main single" : "main single login-main";
   const statusText =
     (isUnlocked() ? " • Unlocked" : " • Locked") +
     (mode === "unlocked" && idleMs > 0
@@ -269,7 +309,7 @@ function App() {
       : "");
 
   return (
-    <div className="app">
+    <div className={isLogin ? "app app-login" : "app"}>
       <header className="header">
         <div className="logo-row">
           <div className="sphere" aria-hidden />
@@ -282,7 +322,7 @@ function App() {
       </header>
 
       <main className={mainClass}>
-        {(mode === "create" || mode === "unlock") && (
+        {isLogin && (
           <section className="card login-card">
             <h2>{mode === "create" ? "Create vault" : "Unlock vault"}</h2>
             <p>
@@ -370,7 +410,7 @@ function App() {
                   Export
                 </button>
                 <button
-                  className="btn sm"
+                  className="btn sm danger"
                   onClick={() => handleLock("Vault locked")}
                   title="Lock (Ctrl+L)"
                 >
@@ -426,22 +466,13 @@ function App() {
             )}
 
             {section === "passwords" && (
-              <PasswordsPanel
-                key={"p-" + panelKey}
-                onLock={() => handleLock()}
-              />
+              <PasswordsPanel key={"p-" + panelKey} />
             )}
             {section === "recovery" && (
-              <RecoveryPhrasesPanel
-                key={"r-" + panelKey}
-                onLock={() => handleLock()}
-              />
+              <RecoveryPhrasesPanel key={"r-" + panelKey} />
             )}
             {section === "hardcoded" && (
-              <HardcodedPanel
-                key={"h-" + panelKey}
-                onLock={() => handleLock()}
-              />
+              <HardcodedPanel key={"h-" + panelKey} />
             )}
           </div>
         )}
