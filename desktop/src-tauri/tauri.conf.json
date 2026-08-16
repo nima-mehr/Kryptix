@@ -13,10 +13,10 @@
     "windows": [
       {
         "title": "Kryptix",
-        "width": 1100,
-        "height": 750,
-        "minWidth": 800,
-        "minHeight": 600,
+        "width": 460,
+        "height": 500,
+        "minWidth": 420,
+        "minHeight": 420,
         "resizable": true,
         "fullscreen": false,
         "center": true
