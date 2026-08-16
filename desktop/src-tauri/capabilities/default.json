@@ -15,6 +15,23 @@
     "opener:default",
     "store:default",
     "dialog:default",
+    "biometry:default",
+    {
+      "identifier": "biometry:allow-has-data",
+      "allow": [{ "domain": "com.kryptix.app" }]
+    },
+    {
+      "identifier": "biometry:allow-get-data",
+      "allow": [{ "domain": "com.kryptix.app" }]
+    },
+    {
+      "identifier": "biometry:allow-set-data",
+      "allow": [{ "domain": "com.kryptix.app" }]
+    },
+    {
+      "identifier": "biometry:allow-remove-data",
+      "allow": [{ "domain": "com.kryptix.app" }]
+    },
     {
       "identifier": "fs:allow-read-text-file",
       "allow": [{ "path": "**" }]
