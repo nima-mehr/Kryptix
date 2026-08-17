@@ -25,6 +25,7 @@ import HardcodedPanel from "./components/HardcodedPanel";
 import ExportModal from "./components/ExportModal";
 import ImportModal from "./components/ImportModal";
 import ToastStack, { type ToastMessage, type ToastKind } from "./components/Toast";
+import KryptixSphereLogo from "./components/KryptixSphereLogo";
 import {
   useIdleLock,
   IDLE_OPTIONS,
@@ -312,7 +313,7 @@ function App() {
     <div className={isLogin ? "app app-login" : "app"}>
       <header className="header">
         <div className="logo-row">
-          <div className="sphere" aria-hidden />
+          <KryptixSphereLogo size={isLogin ? 28 : 36} />
           <h1 className="title">KRYPTIX</h1>
         </div>
         <p className="subtitle">
