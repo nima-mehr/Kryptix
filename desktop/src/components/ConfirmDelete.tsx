@@ -4,7 +4,11 @@ type Props = {
   onCancel: () => void;
 };
 
-/** Inline Cancel / Delete buttons replacing a one-click delete. */
+/**
+ * Inline confirm for delete.
+ * Cancel stays on the right (same place as the original Delete button)
+ * so a mistaken double-click hits Cancel instead of confirming.
+ */
 export default function ConfirmDelete({
   label = "Delete?",
   onConfirm,
@@ -13,11 +17,11 @@ export default function ConfirmDelete({
   return (
     <span className="confirm-delete">
       <span className="confirm-delete-label">{label}</span>
-      <button className="btn sm" onClick={onCancel}>
-        Cancel
-      </button>
       <button className="btn sm danger" onClick={onConfirm}>
         Delete
+      </button>
+      <button className="btn sm" onClick={onCancel}>
+        Cancel
       </button>
     </span>
   );
