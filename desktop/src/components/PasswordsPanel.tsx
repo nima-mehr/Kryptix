@@ -9,6 +9,9 @@ import {
 } from "../lib/storage";
 import ConfirmDelete from "./ConfirmDelete";
 
+/** Favorites is treated as a category chip. */
+const FAVORITES_FILTER = "__favorites__";
+
 type FormState = {
   site: string;
   url: string;
@@ -29,7 +32,8 @@ const emptyForm = (defaultCategory = ""): FormState => ({
   favorite: false,
 });
 
-type CategoryFilter = null | "" | string;
+/** Filter: null = all, "" = uncategorized, FAVORITES_FILTER, or category name */
+type CategoryFilter = null | "" | typeof FAVORITES_FILTER | string;
 
 export default function PasswordsPanel() {
   const [entries, setEntries] = useState<PasswordEntry[]>([]);
@@ -47,6 +51,9 @@ export default function PasswordsPanel() {
   const [newCatName, setNewCatName] = useState("");
   const [showNewCat, setShowNewCat] = useState(false);
   const [pendingDeleteCat, setPendingDeleteCat] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [showBulkCategory, setShowBulkCategory] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -71,7 +78,9 @@ export default function PasswordsPanel() {
 
   const filtered = useMemo(() => {
     let list = entries;
-    if (filter === "") {
+    if (filter === FAVORITES_FILTER) {
+      list = list.filter((e) => e.favorite);
+    } else if (filter === "") {
       list = list.filter((e) => !e.category);
     } else if (filter) {
       list = list.filter((e) => e.category === filter);
@@ -88,9 +97,51 @@ export default function PasswordsPanel() {
     );
   }, [entries, search, filter]);
 
+  const selectedIdList = useMemo(
+    () => Object.keys(selectedIds).filter((id) => selectedIds[id]),
+    [selectedIds]
+  );
+  const selectedCount = selectedIdList.length;
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((e) => selectedIds[e.id]);
+  const uncategorizedCount = entries.filter((e) => !e.category).length;
+  const favoritesCount = entries.filter((e) => e.favorite).length;
+
+  function clearSelection() {
+    setSelectedIds({});
+    setBulkDeleteConfirm(false);
+    setShowBulkCategory(false);
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+    setBulkDeleteConfirm(false);
+  }
+
+  function toggleSelectAllFiltered() {
+    if (allFilteredSelected) {
+      setSelectedIds((prev) => {
+        const next = { ...prev };
+        for (const e of filtered) delete next[e.id];
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = { ...prev };
+        for (const e of filtered) next[e.id] = true;
+        return next;
+      });
+    }
+    setBulkDeleteConfirm(false);
+  }
+
   function openAdd() {
     setEditingId(null);
-    setForm(emptyForm(typeof filter === "string" && filter ? filter : ""));
+    const defaultCat =
+      typeof filter === "string" && filter && filter !== FAVORITES_FILTER
+        ? filter
+        : "";
+    setForm(emptyForm(defaultCat));
     setShowForm(true);
   }
 
@@ -173,6 +224,46 @@ export default function PasswordsPanel() {
       const next = entries.filter((e) => e.id !== id);
       await savePasswords(next);
       setEntries(next);
+      setSelectedIds((prev) => {
+        const n = { ...prev };
+        delete n[id];
+        return n;
+      });
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedCount === 0) return;
+    setError("");
+    setBulkDeleteConfirm(false);
+    try {
+      const idSet = new Set(selectedIdList);
+      const next = entries.filter((e) => !idSet.has(e.id));
+      await savePasswords(next);
+      setEntries(next);
+      clearSelection();
+      if (editingId && idSet.has(editingId)) closeForm();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function applyBulkCategory(category: string | null) {
+    if (selectedCount === 0) return;
+    setError("");
+    try {
+      const idSet = new Set(selectedIdList);
+      const now = Date.now();
+      const next = entries.map((e) =>
+        idSet.has(e.id)
+          ? { ...e, category: category || undefined, updatedAt: now }
+          : e
+      );
+      await savePasswords(next);
+      setEntries(next);
+      clearSelection();
     } catch (e) {
       setError(String(e));
     }
@@ -239,8 +330,6 @@ export default function PasswordsPanel() {
     }
   }
 
-  const uncategorizedCount = entries.filter((e) => !e.category).length;
-
   return (
     <div className="panel">
       <div className="panel-toolbar">
@@ -267,6 +356,15 @@ export default function PasswordsPanel() {
           onClick={() => setFilter(null)}
         >
           All
+        </button>
+        <button
+          className={filter === FAVORITES_FILTER ? "chip active" : "chip"}
+          onClick={() => setFilter(FAVORITES_FILTER)}
+        >
+          ★ Favorites
+          {favoritesCount > 0 && (
+            <span className="chip-count">{favoritesCount}</span>
+          )}
         </button>
         <button
           className={filter === "" ? "chip active" : "chip"}
@@ -326,7 +424,81 @@ export default function PasswordsPanel() {
         )}
       </div>
 
-      {filter && filter !== "" && (
+      {selectedCount > 0 && (
+        <div className="bulk-bar">
+          <label className="check-label">
+            <input
+              type="checkbox"
+              checked={allFilteredSelected}
+              onChange={toggleSelectAllFiltered}
+            />
+            {selectedCount} selected
+          </label>
+          <div className="bulk-actions">
+            {bulkDeleteConfirm ? (
+              <ConfirmDelete
+                label={"Delete " + selectedCount + "?"}
+                onConfirm={handleBulkDelete}
+                onCancel={() => setBulkDeleteConfirm(false)}
+              />
+            ) : (
+              <button
+                className="btn sm danger"
+                onClick={() => {
+                  setShowBulkCategory(false);
+                  setBulkDeleteConfirm(true);
+                }}
+              >
+                Delete
+              </button>
+            )}
+            {showBulkCategory ? (
+              <span className="bulk-category-picker">
+                <select
+                  className="input input-sm"
+                  defaultValue=""
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "__none__") applyBulkCategory(null);
+                    else if (v) applyBulkCategory(v);
+                  }}
+                >
+                  <option value="" disabled>
+                    Move to…
+                  </option>
+                  <option value="__none__">No category</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="btn sm"
+                  onClick={() => setShowBulkCategory(false)}
+                >
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <button
+                className="btn sm"
+                onClick={() => {
+                  setBulkDeleteConfirm(false);
+                  setShowBulkCategory(true);
+                }}
+              >
+                Move to category
+              </button>
+            )}
+            <button className="btn sm" onClick={clearSelection}>
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {filter && filter !== "" && filter !== FAVORITES_FILTER && (
         <div className="category-manage">
           <span className="muted">Category: {filter}</span>
           {pendingDeleteCat === filter ? (
@@ -432,75 +604,100 @@ export default function PasswordsPanel() {
         </div>
       ) : (
         <div className="entry-list">
-          {filtered.map((entry) => (
-            <div key={entry.id} className="entry-row">
-              <div className="entry-main">
-                <div className="entry-head">
-                  <button
-                    className="star-btn"
-                    title="Toggle favorite"
-                    onClick={() => toggleFavorite(entry)}
-                  >
-                    {entry.favorite ? "★" : "☆"}
-                  </button>
-                  <strong className="entry-site">{entry.site}</strong>
-                  {entry.category && (
-                    <span className="entry-category">{entry.category}</span>
-                  )}
-                  {entry.url && (
-                    <span className="entry-url">{entry.url}</span>
-                  )}
-                </div>
-                <div className="entry-meta">
-                  <span className="mono">{entry.username}</span>
-                  <span className="mono pwd">
-                    {revealed[entry.id]
-                      ? entry.password
-                      : "•".repeat(Math.min(entry.password.length, 12))}
-                  </span>
-                </div>
-                {entry.notes && (
-                  <p className="entry-notes">{entry.notes}</p>
-                )}
-              </div>
-              <div className="entry-actions">
-                <button
-                  className="btn sm"
-                  onClick={() => toggleReveal(entry.id)}
-                >
-                  {revealed[entry.id] ? "Hide" : "Show"}
-                </button>
-                <button
-                  className="btn sm"
-                  onClick={() => copyText(entry.id + "-u", entry.username)}
-                >
-                  {copiedId === entry.id + "-u" ? "Copied" : "User"}
-                </button>
-                <button
-                  className="btn sm"
-                  onClick={() => copyText(entry.id + "-p", entry.password)}
-                >
-                  {copiedId === entry.id + "-p" ? "Copied" : "Pass"}
-                </button>
-                <button className="btn sm" onClick={() => openEdit(entry)}>
-                  Edit
-                </button>
-                {pendingDelete === entry.id ? (
-                  <ConfirmDelete
-                    onConfirm={() => handleDelete(entry.id)}
-                    onCancel={() => setPendingDelete(null)}
+          <div className="select-all-row">
+            <label className="check-label">
+              <input
+                type="checkbox"
+                checked={allFilteredSelected}
+                onChange={toggleSelectAllFiltered}
+              />
+              Select all ({filtered.length})
+            </label>
+          </div>
+          {filtered.map((entry) => {
+            const isSelected = !!selectedIds[entry.id];
+            return (
+              <div
+                key={entry.id}
+                className={
+                  isSelected ? "entry-row entry-row-selected" : "entry-row"
+                }
+              >
+                <label className="entry-select">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleSelect(entry.id)}
                   />
-                ) : (
+                </label>
+                <div className="entry-main">
+                  <div className="entry-head">
+                    <button
+                      className="star-btn"
+                      title="Toggle favorite"
+                      onClick={() => toggleFavorite(entry)}
+                    >
+                      {entry.favorite ? "★" : "☆"}
+                    </button>
+                    <strong className="entry-site">{entry.site}</strong>
+                    {entry.category && (
+                      <span className="entry-category">{entry.category}</span>
+                    )}
+                    {entry.url && (
+                      <span className="entry-url">{entry.url}</span>
+                    )}
+                  </div>
+                  <div className="entry-meta">
+                    <span className="mono">{entry.username}</span>
+                    <span className="mono pwd">
+                      {revealed[entry.id]
+                        ? entry.password
+                        : "•".repeat(Math.min(entry.password.length, 12))}
+                    </span>
+                  </div>
+                  {entry.notes && (
+                    <p className="entry-notes">{entry.notes}</p>
+                  )}
+                </div>
+                <div className="entry-actions">
                   <button
-                    className="btn sm danger"
-                    onClick={() => setPendingDelete(entry.id)}
+                    className="btn sm"
+                    onClick={() => toggleReveal(entry.id)}
                   >
-                    Delete
+                    {revealed[entry.id] ? "Hide" : "Show"}
                   </button>
-                )}
+                  <button
+                    className="btn sm"
+                    onClick={() => copyText(entry.id + "-u", entry.username)}
+                  >
+                    {copiedId === entry.id + "-u" ? "Copied" : "User"}
+                  </button>
+                  <button
+                    className="btn sm"
+                    onClick={() => copyText(entry.id + "-p", entry.password)}
+                  >
+                    {copiedId === entry.id + "-p" ? "Copied" : "Pass"}
+                  </button>
+                  <button className="btn sm" onClick={() => openEdit(entry)}>
+                    Edit
+                  </button>
+                  {pendingDelete === entry.id ? (
+                    <ConfirmDelete
+                      onConfirm={() => handleDelete(entry.id)}
+                      onCancel={() => setPendingDelete(null)}
+                    />
+                  ) : (
+                    <button
+                      className="btn sm danger"
+                      onClick={() => setPendingDelete(entry.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
