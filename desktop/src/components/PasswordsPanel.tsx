@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { generateId, type PasswordEntry } from "@kryptix/core";
-import { loadPasswords, savePasswords } from "../lib/storage";
+import {
+  loadPasswords,
+  savePasswords,
+  loadCategories,
+  addCategory,
+  deleteCategory,
+} from "../lib/storage";
 import ConfirmDelete from "./ConfirmDelete";
 
 type FormState = {
@@ -9,36 +15,49 @@ type FormState = {
   username: string;
   password: string;
   notes: string;
+  category: string;
   favorite: boolean;
 };
 
-const emptyForm = (): FormState => ({
+const emptyForm = (defaultCategory = ""): FormState => ({
   site: "",
   url: "",
   username: "",
   password: "",
   notes: "",
+  category: defaultCategory,
   favorite: false,
 });
 
+type CategoryFilter = null | "" | string;
+
 export default function PasswordsPanel() {
   const [entries, setEntries] = useState<PasswordEntry[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<CategoryFilter>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [newCatName, setNewCatName] = useState("");
+  const [showNewCat, setShowNewCat] = useState(false);
+  const [pendingDeleteCat, setPendingDeleteCat] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const vault = await loadPasswords();
+      const [vault, cats] = await Promise.all([
+        loadPasswords(),
+        loadCategories(),
+      ]);
       setEntries(vault);
+      setCategories(cats);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -51,20 +70,27 @@ export default function PasswordsPanel() {
   }, [refresh]);
 
   const filtered = useMemo(() => {
+    let list = entries;
+    if (filter === "") {
+      list = list.filter((e) => !e.category);
+    } else if (filter) {
+      list = list.filter((e) => e.category === filter);
+    }
     const q = search.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter(
+    if (!q) return list;
+    return list.filter(
       (e) =>
         e.site.toLowerCase().includes(q) ||
         e.username.toLowerCase().includes(q) ||
         (e.url ?? "").toLowerCase().includes(q) ||
-        (e.notes ?? "").toLowerCase().includes(q)
+        (e.notes ?? "").toLowerCase().includes(q) ||
+        (e.category ?? "").toLowerCase().includes(q)
     );
-  }, [entries, search]);
+  }, [entries, search, filter]);
 
   function openAdd() {
     setEditingId(null);
-    setForm(emptyForm());
+    setForm(emptyForm(typeof filter === "string" && filter ? filter : ""));
     setShowForm(true);
   }
 
@@ -76,6 +102,7 @@ export default function PasswordsPanel() {
       username: entry.username,
       password: entry.password,
       notes: entry.notes ?? "",
+      category: entry.category ?? "",
       favorite: entry.favorite ?? false,
     });
     setShowForm(true);
@@ -96,6 +123,7 @@ export default function PasswordsPanel() {
 
     try {
       const now = Date.now();
+      const cat = form.category.trim() || undefined;
       let next: PasswordEntry[];
 
       if (editingId) {
@@ -108,6 +136,7 @@ export default function PasswordsPanel() {
                 username: form.username.trim(),
                 password: form.password,
                 notes: form.notes.trim() || undefined,
+                category: cat,
                 favorite: form.favorite,
                 updatedAt: now,
               }
@@ -121,6 +150,7 @@ export default function PasswordsPanel() {
           username: form.username.trim(),
           password: form.password,
           notes: form.notes.trim() || undefined,
+          category: cat,
           favorite: form.favorite,
           createdAt: now,
           updatedAt: now,
@@ -177,6 +207,40 @@ export default function PasswordsPanel() {
     setRevealed((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
+  async function handleAddCategory() {
+    setError("");
+    try {
+      const updated = await addCategory(newCatName);
+      setCategories(updated);
+      setForm((f) => ({ ...f, category: newCatName.trim() }));
+      setNewCatName("");
+      setShowNewCat(false);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function handleDeleteCategory(name: string) {
+    setError("");
+    setPendingDeleteCat(null);
+    try {
+      const next = entries.map((e) =>
+        e.category === name
+          ? { ...e, category: undefined, updatedAt: Date.now() }
+          : e
+      );
+      await savePasswords(next);
+      setEntries(next);
+      const updated = await deleteCategory(name);
+      setCategories(updated);
+      if (filter === name) setFilter(null);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  const uncategorizedCount = entries.filter((e) => !e.category).length;
+
   return (
     <div className="panel">
       <div className="panel-toolbar">
@@ -196,6 +260,90 @@ export default function PasswordsPanel() {
           </button>
         </div>
       </div>
+
+      <div className="category-bar">
+        <button
+          className={filter === null ? "chip active" : "chip"}
+          onClick={() => setFilter(null)}
+        >
+          All
+        </button>
+        <button
+          className={filter === "" ? "chip active" : "chip"}
+          onClick={() => setFilter("")}
+        >
+          Uncategorized
+          {uncategorizedCount > 0 && (
+            <span className="chip-count">{uncategorizedCount}</span>
+          )}
+        </button>
+        {categories.map((c) => {
+          const count = entries.filter((e) => e.category === c).length;
+          return (
+            <button
+              key={c}
+              className={filter === c ? "chip active" : "chip"}
+              onClick={() => setFilter(c)}
+            >
+              {c}
+              {count > 0 && <span className="chip-count">{count}</span>}
+            </button>
+          );
+        })}
+        {showNewCat ? (
+          <span className="new-cat-inline">
+            <input
+              className="input input-sm"
+              placeholder="Category name"
+              value={newCatName}
+              autoFocus
+              onChange={(e) => setNewCatName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddCategory();
+                if (e.key === "Escape") {
+                  setShowNewCat(false);
+                  setNewCatName("");
+                }
+              }}
+            />
+            <button className="btn sm primary" onClick={handleAddCategory}>
+              Add
+            </button>
+            <button
+              className="btn sm"
+              onClick={() => {
+                setShowNewCat(false);
+                setNewCatName("");
+              }}
+            >
+              Cancel
+            </button>
+          </span>
+        ) : (
+          <button className="chip chip-add" onClick={() => setShowNewCat(true)}>
+            + Category
+          </button>
+        )}
+      </div>
+
+      {filter && filter !== "" && (
+        <div className="category-manage">
+          <span className="muted">Category: {filter}</span>
+          {pendingDeleteCat === filter ? (
+            <ConfirmDelete
+              onConfirm={() => handleDeleteCategory(filter)}
+              onCancel={() => setPendingDeleteCat(null)}
+            />
+          ) : (
+            <button
+              className="btn sm danger"
+              onClick={() => setPendingDeleteCat(filter)}
+            >
+              Delete category
+            </button>
+          )}
+        </div>
+      )}
 
       {error && <p className="error">{error}</p>}
 
@@ -228,6 +376,18 @@ export default function PasswordsPanel() {
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
             />
+            <select
+              className="input"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+            >
+              <option value="">No category</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
             <textarea
               className="input notes"
               placeholder="Notes"
@@ -261,8 +421,10 @@ export default function PasswordsPanel() {
         <p className="muted">Loading…</p>
       ) : filtered.length === 0 ? (
         <div className="empty">
-          <p>{search ? "No matches." : "No passwords yet."}</p>
-          {!search && (
+          <p>
+            {search || filter !== null ? "No matches." : "No passwords yet."}
+          </p>
+          {!search && filter === null && (
             <button className="btn primary" onClick={openAdd}>
               Add your first password
             </button>
@@ -282,6 +444,9 @@ export default function PasswordsPanel() {
                     {entry.favorite ? "★" : "☆"}
                   </button>
                   <strong className="entry-site">{entry.site}</strong>
+                  {entry.category && (
+                    <span className="entry-category">{entry.category}</span>
+                  )}
                   {entry.url && (
                     <span className="entry-url">{entry.url}</span>
                   )}

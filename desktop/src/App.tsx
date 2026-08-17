@@ -24,6 +24,7 @@ import RecoveryPhrasesPanel from "./components/RecoveryPhrasesPanel";
 import HardcodedPanel from "./components/HardcodedPanel";
 import ExportModal from "./components/ExportModal";
 import ImportModal from "./components/ImportModal";
+import AboutFaqModal from "./components/AboutFaqModal";
 import ToastStack, { type ToastMessage, type ToastKind } from "./components/Toast";
 import KryptixSphereLogo from "./components/KryptixSphereLogo";
 import {
@@ -36,9 +37,7 @@ import "./App.css";
 
 type Mode = "loading" | "create" | "unlock" | "unlocked";
 
-/** Compact size for create / unlock — fits the login card + borders. */
 const LOGIN_SIZE = { width: 460, height: 500 };
-/** Working size once the vault is open. */
 const VAULT_SIZE = { width: 920, height: 640 };
 const LOGIN_MIN = { width: 420, height: 420 };
 const VAULT_MIN = { width: 720, height: 520 };
@@ -48,12 +47,10 @@ async function applyWindowSize(forVault: boolean) {
     const win = getCurrentWindow();
     const size = forVault ? VAULT_SIZE : LOGIN_SIZE;
     const min = forVault ? VAULT_MIN : LOGIN_MIN;
-    // Min first so a shrink is never blocked by the previous vault min.
     await win.setMinSize(new LogicalSize(min.width, min.height));
     await win.setSize(new LogicalSize(size.width, size.height));
     await win.center();
   } catch (err) {
-    // Not running under Tauri (e.g. plain vite preview), or API missing.
     console.warn("[kryptix] applyWindowSize failed:", err);
   }
 }
@@ -70,6 +67,7 @@ function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [idleMs, setIdleMs] = useState(loadIdleTimeout);
   const [showSettings, setShowSettings] = useState(false);
+  const [infoMode, setInfoMode] = useState<"about" | "faq" | null>(null);
   const [bioInfo, setBioInfo] = useState<BiometryInfo | null>(null);
   const [bioEnabled, setBioEnabled] = useState(isBiometricPrefEnabled);
   const [bioCanUnlock, setBioCanUnlock] = useState(false);
@@ -86,7 +84,6 @@ function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // Probe biometrics on mount and when returning to lock screen
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -113,9 +110,6 @@ function App() {
       });
   }, []);
 
-  // Apply fixed size only when switching screens (login ↔ vault).
-  // Do NOT re-apply on focus — that fights the user when they resize
-  // or drag the window (focus fires mid-drag and snaps size/position).
   useEffect(() => {
     if (mode === "loading") return;
     void applyWindowSize(mode === "unlocked");
@@ -128,6 +122,7 @@ function App() {
     setExportOpen(false);
     setImportOpen(false);
     setShowSettings(false);
+    setInfoMode(null);
     if (reason) toast(reason, "info");
   }
 
@@ -138,7 +133,6 @@ function App() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.ctrlKey || e.metaKey;
-
       if (e.key === "Escape") {
         if (exportOpen) {
           setExportOpen(false);
@@ -146,15 +140,16 @@ function App() {
         } else if (importOpen) {
           setImportOpen(false);
           e.preventDefault();
+        } else if (infoMode) {
+          setInfoMode(null);
+          e.preventDefault();
         } else if (showSettings) {
           setShowSettings(false);
           e.preventDefault();
         }
         return;
       }
-
       if (!mod) return;
-
       if (e.key === "l" || e.key === "L") {
         if (mode === "unlocked") {
           e.preventDefault();
@@ -162,7 +157,6 @@ function App() {
         }
         return;
       }
-
       if (e.key === "b" || e.key === "B") {
         if (mode === "unlocked") {
           e.preventDefault();
@@ -170,7 +164,6 @@ function App() {
         }
         return;
       }
-
       if (e.key === "i" || e.key === "I") {
         if (mode === "unlocked") {
           e.preventDefault();
@@ -178,7 +171,6 @@ function App() {
         }
         return;
       }
-
       if (mode === "unlocked" && ["1", "2", "3"].includes(e.key)) {
         e.preventDefault();
         const map: Record<string, VaultSection> = {
@@ -189,10 +181,9 @@ function App() {
         setSection(map[e.key]);
       }
     }
-
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, exportOpen, importOpen, showSettings]);
+  }, [mode, exportOpen, importOpen, showSettings, infoMode]);
 
   async function handleCreate() {
     setError("");
@@ -238,7 +229,6 @@ function App() {
       toast("Unlocked with " + (bioInfo?.label || "biometrics"), "success");
     } catch (e) {
       const msg = String(e);
-      // User cancel is not an error toast
       if (!/cancel/i.test(msg)) {
         setError(msg);
         toast(msg, "error");
@@ -259,9 +249,7 @@ function App() {
         toast("Biometric unlock disabled", "info");
       } else {
         const master = getSessionMaster();
-        if (!master) {
-          throw new Error("Unlock with your password first");
-        }
+        if (!master) throw new Error("Unlock with your password first");
         await enableBiometrics(master);
         setBioEnabled(true);
         setBioCanUnlock(true);
@@ -269,9 +257,7 @@ function App() {
       }
     } catch (e) {
       const msg = String(e);
-      if (!/cancel/i.test(msg)) {
-        toast(msg, "error");
-      }
+      if (!/cancel/i.test(msg)) toast(msg, "error");
     } finally {
       setBioBusy(false);
     }
@@ -326,7 +312,6 @@ function App() {
                 ? "Choose a master password. It is never stored — only used to encrypt your data."
                 : "Enter your master password to decrypt the vault."}
             </p>
-
             <div className="form">
               <input
                 type="password"
@@ -374,7 +359,6 @@ function App() {
                 )}
               </div>
             </div>
-
             {error && <p className="error">{error}</p>}
           </section>
         )}
@@ -422,9 +406,7 @@ function App() {
                   {IDLE_OPTIONS.map((o) => (
                     <button
                       key={o.ms}
-                      className={
-                        idleMs === o.ms ? "btn sm primary" : "btn sm"
-                      }
+                      className={idleMs === o.ms ? "btn sm primary" : "btn sm"}
                       onClick={() => changeIdle(o.ms)}
                     >
                       {o.label}
@@ -454,6 +436,16 @@ function App() {
                   )}
                 </div>
 
+                <span className="settings-label">Help</span>
+                <div className="settings-options">
+                  <button className="btn sm" type="button" onClick={() => setInfoMode("faq")}>
+                    FAQ
+                  </button>
+                  <button className="btn sm" type="button" onClick={() => setInfoMode("about")}>
+                    About
+                  </button>
+                </div>
+
                 <p className="shortcuts-hint">
                   Shortcuts: Ctrl+L lock · Ctrl+B export · Ctrl+I import ·
                   Ctrl+1/2/3 tabs · Esc close · Window close goes to tray
@@ -461,15 +453,9 @@ function App() {
               </div>
             )}
 
-            {section === "passwords" && (
-              <PasswordsPanel key={"p-" + panelKey} />
-            )}
-            {section === "recovery" && (
-              <RecoveryPhrasesPanel key={"r-" + panelKey} />
-            )}
-            {section === "hardcoded" && (
-              <HardcodedPanel key={"h-" + panelKey} />
-            )}
+            {section === "passwords" && <PasswordsPanel key={"p-" + panelKey} />}
+            {section === "recovery" && <RecoveryPhrasesPanel key={"r-" + panelKey} />}
+            {section === "hardcoded" && <HardcodedPanel key={"h-" + panelKey} />}
           </div>
         )}
       </main>
@@ -486,6 +472,12 @@ function App() {
           setPanelKey((k) => k + 1);
           toast(msg || "Import complete", "success");
         }}
+      />
+
+      <AboutFaqModal
+        open={infoMode !== null}
+        mode={infoMode === "about" ? "about" : "faq"}
+        onClose={() => setInfoMode(null)}
       />
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />

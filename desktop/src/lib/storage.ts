@@ -22,6 +22,7 @@ const KEYS = {
   hardcoded: 'kryptix_hardcoded_passwords',
   /** Marker that a vault has been created (does not store the password) */
   vaultExists: 'kryptix_vault_exists',
+  categories: 'kryptix_categories',
 } as const;
 
 type EncryptedBlob = {
@@ -58,10 +59,6 @@ export async function vaultExists(): Promise<boolean> {
   return flag === true;
 }
 
-/**
- * Create a new empty vault protected by the master password.
- * Fails if a vault already exists.
- */
 export async function createVault(masterPassword: string): Promise<void> {
   if (!masterPassword || masterPassword.length < 4) {
     throw new Error('Master password must be at least 4 characters');
@@ -84,9 +81,6 @@ export async function createVault(masterPassword: string): Promise<void> {
   sessionMaster = masterPassword;
 }
 
-/**
- * Unlock the vault for this session. Validates the password by trying to decrypt.
- */
 export async function unlockVault(masterPassword: string): Promise<void> {
   if (!masterPassword) throw new Error('Password required');
   if (!(await vaultExists())) {
@@ -108,7 +102,6 @@ export async function unlockVault(masterPassword: string): Promise<void> {
   sessionMaster = masterPassword;
 }
 
-/** Clear the in-memory master password (lock the vault). */
 export function lockVault(): void {
   sessionMaster = null;
 }
@@ -117,7 +110,6 @@ export function isUnlocked(): boolean {
   return sessionMaster !== null;
 }
 
-/** Session master password while unlocked (for enabling biometrics). */
 export function getSessionMaster(): string | null {
   return sessionMaster;
 }
@@ -126,8 +118,6 @@ function requireMaster(): string {
   if (!sessionMaster) throw new Error('Vault is locked');
   return sessionMaster;
 }
-
-// ---- Passwords ----
 
 export async function loadPasswords(): Promise<PasswordVault> {
   const master = requireMaster();
@@ -145,8 +135,6 @@ export async function savePasswords(vault: PasswordVault): Promise<void> {
   await store.save();
 }
 
-// ---- Recovery phrases ----
-
 export async function loadRecovery(): Promise<RecoveryPhraseVault> {
   const master = requireMaster();
   const store = await getStore();
@@ -163,8 +151,6 @@ export async function saveRecovery(vault: RecoveryPhraseVault): Promise<void> {
   await store.save();
 }
 
-// ---- Hardcoded passwords ----
-
 export async function loadHardcoded(): Promise<HardcodedPasswordVault> {
   const master = requireMaster();
   const store = await getStore();
@@ -179,4 +165,35 @@ export async function saveHardcoded(vault: HardcodedPasswordVault): Promise<void
   const blob = await encryptJson(vault, master);
   await store.set(KEYS.hardcoded, blob);
   await store.save();
+}
+
+export async function loadCategories(): Promise<string[]> {
+  const store = await getStore();
+  const list = await store.get<string[]>(KEYS.categories);
+  return Array.isArray(list) ? list : [];
+}
+
+export async function saveCategories(categories: string[]): Promise<void> {
+  const store = await getStore();
+  await store.set(KEYS.categories, categories);
+  await store.save();
+}
+
+export async function addCategory(name: string): Promise<string[]> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error('Category name cannot be empty');
+  const categories = await loadCategories();
+  if (categories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+    throw new Error('Category already exists');
+  }
+  const updated = [...categories, trimmed];
+  await saveCategories(updated);
+  return updated;
+}
+
+export async function deleteCategory(name: string): Promise<string[]> {
+  const categories = await loadCategories();
+  const updated = categories.filter((c) => c !== name);
+  await saveCategories(updated);
+  return updated;
 }
