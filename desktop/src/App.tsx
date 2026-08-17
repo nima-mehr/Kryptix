@@ -113,17 +113,12 @@ function App() {
       });
   }, []);
 
-  // Keep the native window sized to the current screen (login vs vault).
-  // Also re-apply on focus so tray-restore doesn't leave a stale size.
+  // Apply fixed size only when switching screens (login ↔ vault).
+  // Do NOT re-apply on focus — that fights the user when they resize
+  // or drag the window (focus fires mid-drag and snaps size/position).
   useEffect(() => {
     if (mode === "loading") return;
     void applyWindowSize(mode === "unlocked");
-
-    const onFocus = () => {
-      void applyWindowSize(mode === "unlocked");
-    };
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
   }, [mode]);
 
   function handleLock(reason?: string) {
