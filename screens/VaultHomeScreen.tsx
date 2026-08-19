@@ -15,7 +15,7 @@ import RecoveryPhrasesPanel from './panels/RecoveryPhrasesPanel';
 type SettingsView = 'main' | 'theme' | 'language';
 type HelpView = 'main' | 'faq' | 'about' | 'support';
 
-/** FAQ keys — faq7 lives in i18n/faqOverrides.ts and is merged at runtime */
+/** FAQ keys — faq7/faq8 live in i18n/faqOverrides.ts and are merged at runtime */
 const FAQ_KEYS: { q: string; a: string }[] = [
   { q: 'faq1q', a: 'faq1a' },
   { q: 'faq2q', a: 'faq2a' },
@@ -24,6 +24,7 @@ const FAQ_KEYS: { q: string; a: string }[] = [
   { q: 'faq5q', a: 'faq5a' },
   { q: 'faq6q', a: 'faq6a' },
   { q: 'faq7q', a: 'faq7a' },
+  { q: 'faq8q', a: 'faq8a' },
 ];
 
 const VaultHomeScreen = () => {
