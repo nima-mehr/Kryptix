@@ -39,3 +39,11 @@ export {
 // Utils
 export { generateId } from './utils/id';
 export { countWords } from './utils/words';
+
+// Legal (public GitHub Pages URLs)
+export {
+  PRIVACY_POLICY_URL,
+  TERMS_OF_SERVICE_URL,
+  LEGAL_HOME_URL,
+  GITHUB_REPO_URL,
+} from './legal';
