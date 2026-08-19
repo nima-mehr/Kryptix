@@ -22,7 +22,7 @@ Your data never leaves your device unless **you** explicitly export an encrypted
 
 | Unlock | Passwords |
 |:------:|:---------:|
-| ![Desktop unlock](docs/screenshots/desktop-unlock.png) | ![Desktop passwords](docs/screenshots/desktop-passwords.png) |
+| ![Desktop unlock](docs/screenshots/desktop-login.png) | ![Desktop passwords](docs/screenshots/desktop-passwords.png) |
 
 ---
 

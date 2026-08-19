@@ -6,7 +6,7 @@ App screenshots used in the main README.
 |------|----------|--------|
 | `mobile-login.jpg` | Mobile | Login / unlock |
 | `mobile-vault.jpg` | Mobile | Passwords vault |
-| `desktop-unlock.png` | Desktop | Unlock vault |
+| `desktop-login.png` | Desktop | Unlock vault |
 | `desktop-passwords.png` | Desktop | Passwords panel |
 
 Guidelines for future shots:
