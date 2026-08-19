@@ -34,8 +34,8 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
     a: "Optional labels to group passwords (Work, Personal, Banking, …). Filter the list by category chips, assign a category when adding or editing an entry, and create or delete categories from the Passwords panel.",
   },
   {
-    q: "Is the source code open?",
-    a: "Yes — Kryptix is open source under the MIT license. Review the security model and contribute on GitHub.",
+    q: "Is the source code available?",
+    a: "Yes. The source is public on GitHub under the PolyForm Noncommercial 1.0.0 license (source-available, not open source). You can review the code and contribute for noncommercial purposes. Commercial use, resale, or republishing the app as a product requires a separate commercial license.",
   },
 ];
 
@@ -76,7 +76,7 @@ export default function AboutFaqModal({ open, mode, onClose }: Props) {
                 </div>
                 <div>
                   <dt>License</dt>
-                  <dd>MIT</dd>
+                  <dd>PolyForm Noncommercial 1.0.0</dd>
                 </div>
               </dl>
               <p className="muted">
