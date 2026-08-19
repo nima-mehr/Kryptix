@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Clipboard, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import VaultSectionTabs, { VaultSection } from '../components/VaultSectionTabs';
 import KryptixSphereLogo from '../components/KryptixSphereLogo';
@@ -14,8 +14,6 @@ import RecoveryPhrasesPanel from './panels/RecoveryPhrasesPanel';
 
 type SettingsView = 'main' | 'theme' | 'language';
 type HelpView = 'main' | 'faq' | 'about' | 'support';
-
-const SUPPORT_WALLET = '0xe9e9603Ca0677669b2bFd02AC4eE286e2764AA33';
 
 /** FAQ keys — faq7 lives in i18n/faqOverrides.ts and is merged at runtime */
 const FAQ_KEYS: { q: string; a: string }[] = [
@@ -39,7 +37,6 @@ const VaultHomeScreen = () => {
   const [showHelp, setShowHelp] = useState(false);
   const [helpView, setHelpView] = useState<HelpView>('main');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
-  const [walletCopied, setWalletCopied] = useState(false);
   const [showBackup, setShowBackup] = useState(false);
 
   const themeOptions: { key: ThemeMode; labelKey: TranslationKey; icon: string }[] = useMemo(
@@ -87,12 +84,6 @@ const VaultHomeScreen = () => {
   const openGithub = () => Linking.openURL('https://github.com/nima-mehr/Kryptix');
   const openEmail = () =>
     Linking.openURL('mailto:N.mehr27@gmail.com?subject=Kryptix%20support');
-
-  const copyWallet = () => {
-    Clipboard.setString(SUPPORT_WALLET);
-    setWalletCopied(true);
-    setTimeout(() => setWalletCopied(false), 1500);
-  };
 
   return (
     <View
@@ -255,44 +246,6 @@ const VaultHomeScreen = () => {
                   <Text style={[styles.rowLabel, { color: colors.text }]}>{t('emailDeveloper')}</Text>
                   <Text style={{ color: colors.tint, fontSize: 13, fontWeight: '600' }}>{t('mail')}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.panelTitle, { color: colors.textSecondary, paddingTop: 8 }]}>
-                  {t('donateEthUsdt')}
-                </Text>
-                <View style={styles.walletBlock}>
-                  <Text style={[styles.walletHint, { color: colors.textSecondary }]}>
-                    ETH or USDT (Tether) on the Ethereum network (ERC-20)
-                  </Text>
-                  <Text
-                    style={[styles.walletAddress, { color: colors.text, borderColor: colors.border }]}
-                    selectable
-                  >
-                    {SUPPORT_WALLET}
-                  </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.copyWalletBtn,
-                      {
-                        backgroundColor: walletCopied
-                          ? colors.successBackground || colors.tint + '22'
-                          : colors.tint + '18',
-                      },
-                    ]}
-                    onPress={copyWallet}
-                  >
-                    <Text
-                      style={{
-                        color: walletCopied ? colors.success || colors.tint : colors.tint,
-                        fontWeight: '700',
-                        fontSize: 14,
-                      }}
-                    >
-                      {walletCopied ? t('copied') : t('copyAddress')}
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={[styles.walletWarning, { color: colors.textSecondary }]}>
-                    {t('walletWarning')}
-                  </Text>
-                </View>
               </>
             )}
           </View>
@@ -489,28 +442,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 8,
     paddingTop: 4,
-  },
-  walletBlock: { paddingHorizontal: 16, paddingBottom: 16, paddingTop: 4 },
-  walletHint: { fontSize: 13, marginBottom: 8, lineHeight: 18 },
-  walletAddress: {
-    fontSize: 12,
-    fontFamily: 'monospace',
-    lineHeight: 18,
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-  },
-  copyWalletBtn: {
-    marginTop: 10,
-    alignSelf: 'flex-start',
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-  },
-  walletWarning: {
-    marginTop: 12,
-    fontSize: 12,
-    lineHeight: 17,
   },
 });
 
