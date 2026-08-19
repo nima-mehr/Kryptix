@@ -2,11 +2,37 @@
 
 **Privacy-first offline vault for passwords, recovery phrases, and sensitive secrets.**
 
-Kryptix is a modern, fully offline password manager and secure vault built with React Native + Expo (mobile) and Tauri (desktop in progress).  
+Kryptix is a modern, fully offline password manager and secure vault — React Native + Expo on mobile, Tauri 2 on desktop.  
 Your data never leaves your device unless **you** explicitly export an encrypted backup. No cloud accounts, no telemetry, no third-party servers.
 
 > **Transparency first.**  
 > Password vaults demand trust. The source is available so anyone can inspect the encryption, data handling, and architecture instead of relying on marketing claims.
+
+---
+
+## Screenshots
+
+### Mobile
+
+<!-- Replace the placeholders below with real screenshots (e.g. docs/screenshots/mobile-*.png) -->
+
+| Login / unlock | Vault | Recovery phrases |
+|:--------------:|:-----:|:----------------:|
+| ![Mobile login](docs/screenshots/mobile-login.png) | ![Mobile vault](docs/screenshots/mobile-vault.png) | ![Mobile recovery](docs/screenshots/mobile-recovery.png) |
+
+*Add 2–4 mobile screenshots here (login, passwords list, recovery phrase, settings).*
+
+### Desktop
+
+<!-- Replace the placeholders below with real screenshots (e.g. docs/screenshots/desktop-*.png) -->
+
+| Unlock | Passwords | Settings / export |
+|:------:|:---------:|:-----------------:|
+| ![Desktop unlock](docs/screenshots/desktop-unlock.png) | ![Desktop passwords](docs/screenshots/desktop-passwords.png) | ![Desktop export](docs/screenshots/desktop-export.png) |
+
+*Add 2–4 desktop screenshots here (unlock, passwords panel, recovery, export/import).*
+
+> Tip: keep screenshots free of real secrets. Use demo data only. Prefer dark theme captures to match the app.
 
 ---
 
@@ -49,8 +75,8 @@ Kryptix is designed for people who want a serious, verifiable tool for their mos
 ### Internationalization
 Full support for 14 languages with consistent LTR layout. Shell and settings are translated; panel strings continue to be wired to the translation system.
 
-### Desktop (in progress)
-A native desktop companion built with **Tauri 2 + React + TypeScript** is under active development (`desktop/` folder). Goal: shared encryption/types core and a consistent vault experience across mobile and desktop.
+### Desktop
+Native desktop companion built with **Tauri 2 + React + TypeScript** (`desktop/`). Shared core package (`packages/core`) for encryption, types, and vault format. Full vault UI with Passwords, Recovery, and Hardcoded panels, import/export, and auto-lock.
 
 ---
 
@@ -66,9 +92,9 @@ Kryptix follows a local-first, user-controlled design:
 - **Full-vault backups** use AES-256-CBC, a stretched key derived from a user-chosen passphrase, and a MAC so tampering can be detected.
 - **Clipboard control** — Individual entries can restrict or allow copying.
 
-We believe the strongest trust signal for a password vault is the ability for independent parties to review the code. That is why the repository is public.
+We believe the strongest trust signal for a password vault is the ability for independent parties to review the code. The repository is public for transparency and audit — under a source-available (noncommercial) license, not a permissive open-source license.
 
-For vulnerability reporting, supported versions, and disclosure policy, see **[SECURITY.md](SECURITY.md)**.
+> For vulnerability reports, please open a private security advisory or contact the maintainer. See [`SECURITY.md`](SECURITY.md) when available.
 
 ---
 
@@ -82,9 +108,10 @@ For vulnerability reporting, supported versions, and disclosure policy, see **[S
 - `expo-local-authentication` for biometrics
 - Multi-language i18n system
 
-**Desktop (WIP)**
+**Desktop**
 - Tauri 2 + React + TypeScript
-- Shared core goals: encryption, types, vault logic
+- Shared `@kryptix/core` package (encryption, types, `.kryptix` format)
+- tauri-plugin-store + AES-256 encrypt-at-rest via master password
 
 ---
 
@@ -94,11 +121,14 @@ For vulnerability reporting, supported versions, and disclosure policy, see **[S
 # Install dependencies
 npm install
 
-# Start the Expo development server
+# Start the Expo development server (mobile)
 npx expo start
+
+# Desktop (from desktop/)
+cd desktop && npm install && npm run tauri dev
 ```
 
-Then open the app in Expo Go, an iOS Simulator, or an Android Emulator.
+Then open the mobile app in Expo Go, an iOS Simulator, or an Android Emulator.
 
 ### Project structure (key parts)
 
@@ -106,11 +136,13 @@ Then open the app in Expo Go, an iOS Simulator, or an Android Emulator.
 app/                  # Expo Router entry points
 screens/              # Login, VaultHome, and related screens
 components/           # UI components, tabs, backup modal, logo
-utils/                # Encryption, biometrics, recovery, hardcoded, kryptix backup format, import/export
+utils/                # Encryption, biometrics, recovery, hardcoded, kryptix backup, import/export
 types/                # TypeScript definitions (passwords, recovery, hardcoded, vault format)
 i18n/                 # Translation packs and registry
 context/              # Theme & language context
-desktop/              # Tauri 2 desktop app (in progress)
+packages/core/        # Shared types, encryption, legal URLs
+desktop/              # Tauri 2 desktop app
+docs/                 # GitHub Pages (Privacy, Terms) + screenshot placeholders
 ```
 
 ---
@@ -123,23 +155,45 @@ desktop/              # Tauri 2 desktop app (in progress)
 - [x] Biometric unlock (post master-password)
 - [x] Full-vault encrypted `.kryptix` backup / restore
 - [x] Multi-language support (14 languages)
-- [ ] Desktop app (Tauri) — core + vault UI
-- [ ] Shared encryption / types package between mobile and desktop
+- [x] Shared `@kryptix/core` package
+- [x] Desktop vault UI (Passwords / Recovery / Hardcoded) + import/export
+- [ ] Mobile Settings links to Privacy & Terms
 - [ ] Additional hardening and documentation
 - [ ] Independent security review (planned)
+- [ ] Public repository + store listings
 
 ---
 
 ## Contributing
 
 Contributions, security feedback, and thoughtful issue reports are welcome.  
-Please open an issue or pull request. For security-sensitive reports, see [SECURITY.md](SECURITY.md).
+Please open an issue or pull request. For security-sensitive reports, prefer a private channel when possible.
 
 ---
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+**Source-available** under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) — see [LICENSE](LICENSE).
+
+This is **not** open source (OSI). The source is published so users and security researchers can audit the encryption and data handling. You may use, study, and modify the code for **noncommercial** purposes. You may **not** sell the software, republish it as your own product, or use it for commercial purposes without a separate commercial license from the copyright holder.
+
+Contributions are welcome; by submitting a pull request you agree that your contribution is licensed under the same terms.
+
+---
+
+## Legal
+
+| Document | URL |
+|----------|-----|
+| [Privacy Policy](PRIVACY_POLICY.md) | https://nima-mehr.github.io/Kryptix/privacy/ |
+| [Terms of Service](TERMS_OF_SERVICE.md) | https://nima-mehr.github.io/Kryptix/terms/ |
+| Legal home | https://nima-mehr.github.io/Kryptix/ |
+
+Hosted from [`docs/`](docs/) via **GitHub Pages**. Markdown sources live at the repo root.
+
+**App Store / Play Console:** paste the Privacy URL into the required privacy-policy field. The same links should be reachable inside the app (desktop Settings already opens them).
+
+Canonical constants: `packages/core/src/legal.ts` (`PRIVACY_POLICY_URL`, `TERMS_OF_SERVICE_URL`).
 
 ---
 
