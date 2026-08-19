@@ -14,25 +14,15 @@ Your data never leaves your device unless **you** explicitly export an encrypted
 
 ### Mobile
 
-<!-- Replace the placeholders below with real screenshots (e.g. docs/screenshots/mobile-*.png) -->
-
-| Login / unlock | Vault | Recovery phrases |
-|:--------------:|:-----:|:----------------:|
-| ![Mobile login](docs/screenshots/mobile-login.png) | ![Mobile vault](docs/screenshots/mobile-vault.png) | ![Mobile recovery](docs/screenshots/mobile-recovery.png) |
-
-*Add 2–4 mobile screenshots here (login, passwords list, recovery phrase, settings).*
+| Login / unlock | Vault |
+|:--------------:|:-----:|
+| ![Mobile login](docs/screenshots/mobile-login.jpg) | ![Mobile vault](docs/screenshots/mobile-vault.jpg) |
 
 ### Desktop
 
-<!-- Replace the placeholders below with real screenshots (e.g. docs/screenshots/desktop-*.png) -->
-
-| Unlock | Passwords | Settings / export |
-|:------:|:---------:|:-----------------:|
-| ![Desktop unlock](docs/screenshots/desktop-unlock.png) | ![Desktop passwords](docs/screenshots/desktop-passwords.png) | ![Desktop export](docs/screenshots/desktop-export.png) |
-
-*Add 2–4 desktop screenshots here (unlock, passwords panel, recovery, export/import).*
-
-> Tip: keep screenshots free of real secrets. Use demo data only. Prefer dark theme captures to match the app.
+| Unlock | Passwords |
+|:------:|:---------:|
+| ![Desktop unlock](docs/screenshots/desktop-unlock.png) | ![Desktop passwords](docs/screenshots/desktop-passwords.png) |
 
 ---
 
@@ -51,14 +41,7 @@ Kryptix is designed for people who want a serious, verifiable tool for their mos
 
 ---
 
-## Core Features
-
-### Master Password + Biometrics
-- Strong master password protection
-- Optional biometric unlock (Face ID / fingerprint) via `expo-local-authentication`
-- Biometrics only enabled after successful password unlock; preference stored securely
-
-### Three Specialized Vaults
+## Features
 
 | Section              | Purpose                                      | Highlights |
 |----------------------|----------------------------------------------|------------|
@@ -98,76 +81,37 @@ We believe the strongest trust signal for a password vault is the ability for in
 
 ---
 
-## Tech Stack
+## Getting Started
 
-**Mobile**
-- React Native + Expo (TypeScript)
-- Expo Router
-- SecureStore for sensitive preferences
-- Custom encryption utilities
-- `expo-local-authentication` for biometrics
-- Multi-language i18n system
-
-**Desktop**
-- Tauri 2 + React + TypeScript
-- Shared `@kryptix/core` package (encryption, types, `.kryptix` format)
-- tauri-plugin-store + AES-256 encrypt-at-rest via master password
-
----
-
-## Getting Started (Development)
-
+### Mobile (Expo)
 ```bash
-# Install dependencies
 npm install
-
-# Start the Expo development server (mobile)
 npx expo start
-
-# Desktop (from desktop/)
-cd desktop && npm install && npm run tauri dev
 ```
 
-Then open the mobile app in Expo Go, an iOS Simulator, or an Android Emulator.
-
-### Project structure (key parts)
-
+### Desktop (Tauri 2)
+```bash
+cd desktop
+npm install
+npm run tauri dev
 ```
-app/                  # Expo Router entry points
-screens/              # Login, VaultHome, and related screens
-components/           # UI components, tabs, backup modal, logo
-utils/                # Encryption, biometrics, recovery, hardcoded, kryptix backup, import/export
-types/                # TypeScript definitions (passwords, recovery, hardcoded, vault format)
-i18n/                 # Translation packs and registry
-context/              # Theme & language context
-packages/core/        # Shared types, encryption, legal URLs
-desktop/              # Tauri 2 desktop app
-docs/                 # GitHub Pages (Privacy, Terms) + screenshot placeholders
-```
+
+See `desktop/README.md` (if present) and the packages under `packages/core` for shared encryption and vault format details.
 
 ---
 
-## Roadmap (high level)
+## Backup format
 
-- [x] Passwords vault with import/export
-- [x] Recovery phrases CRUD + dedicated UX
-- [x] Hardcoded passwords with decrypt-on-demand
-- [x] Biometric unlock (post master-password)
-- [x] Full-vault encrypted `.kryptix` backup / restore
-- [x] Multi-language support (14 languages)
-- [x] Shared `@kryptix/core` package
-- [x] Desktop vault UI (Passwords / Recovery / Hardcoded) + import/export
-- [ ] Mobile Settings links to Privacy & Terms
-- [ ] Additional hardening and documentation
-- [ ] Independent security review (planned)
-- [ ] Public repository + store listings
+`.kryptix` files are encrypted full-vault archives. They contain passwords, recovery phrases, and hardcoded entries. Import supports merge or replace. Always keep a strong export passphrase and store the file somewhere safe.
 
 ---
 
-## Contributing
+## Legal
 
-Contributions, security feedback, and thoughtful issue reports are welcome.  
-Please open an issue or pull request. For security-sensitive reports, prefer a private channel when possible.
+- [Privacy Policy](https://nima-mehr.github.io/Kryptix/privacy/)
+- [Terms of Service](https://nima-mehr.github.io/Kryptix/terms/)
+
+Canonical URLs are also exported from `@kryptix/core` for in-app links.
 
 ---
 
@@ -175,26 +119,23 @@ Please open an issue or pull request. For security-sensitive reports, prefer a p
 
 **Source-available** under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) — see [LICENSE](LICENSE).
 
-This is **not** open source (OSI). The source is published so users and security researchers can audit the encryption and data handling. You may use, study, and modify the code for **noncommercial** purposes. You may **not** sell the software, republish it as your own product, or use it for commercial purposes without a separate commercial license from the copyright holder.
-
-Contributions are welcome; by submitting a pull request you agree that your contribution is licensed under the same terms.
+You may view, study, and contribute to the source for noncommercial purposes. Commercial use, resale, and republishing the software as a product require a separate commercial license from the copyright holder.
 
 ---
 
-## Legal
+## Roadmap (high level)
 
-| Document | URL |
-|----------|-----|
-| [Privacy Policy](PRIVACY_POLICY.md) | https://nima-mehr.github.io/Kryptix/privacy/ |
-| [Terms of Service](TERMS_OF_SERVICE.md) | https://nima-mehr.github.io/Kryptix/terms/ |
-| Legal home | https://nima-mehr.github.io/Kryptix/ |
-
-Hosted from [`docs/`](docs/) via **GitHub Pages**. Markdown sources live at the repo root.
-
-**App Store / Play Console:** paste the Privacy URL into the required privacy-policy field. The same links should be reachable inside the app (desktop Settings already opens them).
-
-Canonical constants: `packages/core/src/legal.ts` (`PRIVACY_POLICY_URL`, `TERMS_OF_SERVICE_URL`).
+- [x] Mobile vault (passwords, recovery phrases, hardcoded)
+- [x] Biometric unlock (mobile + desktop)
+- [x] Full-vault `.kryptix` encrypted backup
+- [x] Desktop companion (Tauri 2)
+- [x] Shared `@kryptix/core` package
+- [x] Categories & FAQ/About on desktop
+- [ ] Mobile Settings links to hosted Privacy / Terms
+- [ ] Additional polish and store submissions
 
 ---
 
-**Kryptix** — Your secrets, under your control.
+## Contributing
+
+Source is public for transparency and review. Contributions that improve security, correctness, accessibility, or documentation are welcome. By contributing you agree that your contributions are licensed under the same PolyForm Noncommercial terms unless otherwise agreed in writing.
