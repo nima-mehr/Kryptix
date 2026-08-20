@@ -123,19 +123,6 @@ You may view, study, and contribute to the source for noncommercial purposes. Co
 
 ---
 
-## Roadmap (high level)
-
-- [x] Mobile vault (passwords, recovery phrases, hardcoded)
-- [x] Biometric unlock (mobile + desktop)
-- [x] Full-vault `.kryptix` encrypted backup
-- [x] Desktop companion (Tauri 2)
-- [x] Shared `@kryptix/core` package
-- [x] Categories & FAQ/About on desktop
-- [ ] Mobile Settings links to hosted Privacy / Terms
-- [ ] Additional polish and store submissions
-
----
-
 ## Contributing
 
 Source is public for transparency and review. Contributions that improve security, correctness, accessibility, or documentation are welcome. By contributing you agree that your contributions are licensed under the same PolyForm Noncommercial terms unless otherwise agreed in writing.
